@@ -32,6 +32,10 @@ const setActivity = (text, type = 'custom') => {
 
 const applyTo = (client) => {
     if (!client?.user) return;
+    if (client.isSecondary) {
+        client.user.setPresence({ status: 'invisible', activities: [] });
+        return;
+    }
     client.user.setPresence({
         status: config.bot.activity.status || 'online',
         activities: [currentActivity()]

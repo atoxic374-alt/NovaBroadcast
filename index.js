@@ -132,6 +132,7 @@ const initClients = async () => {
         }
 
         const client = createClient();
+        client.isSecondary = clients.length > 0;
         loadEvents(client);
         attachListeners(client);
 
@@ -198,6 +199,7 @@ const addRuntimeToken = async (token) => {
     }
 
     const client = createClient();
+    client.isSecondary = clients.length > 0;
     loadEvents(client);
     attachListeners(client);
     try {
