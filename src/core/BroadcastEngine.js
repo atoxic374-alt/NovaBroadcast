@@ -113,6 +113,29 @@ class BroadcastEngine {
         return error?.status === 429 || error?.code === 429 || error?.name === 'RateLimitError';
     }
 
+    _isTransient(error) {
+        return this._isRateLimit(error)
+            || [500, 502, 503, 504].includes(error?.status)
+            || ['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ENETUNREACH'].includes(error?.code);
+    }
+
+    _failureReason(error) {
+        const code = error?.code ?? error?.status;
+        return {
+            50007: 'DMs closed or bot blocked',
+            50013: 'Missing permission',
+            10003: 'User unavailable',
+            429: 'Rate limited after retries',
+            500: 'Discord server error',
+            502: 'Discord gateway error',
+            503: 'Discord temporarily unavailable',
+            504: 'Discord request timeout',
+            '-1': 'User fetch failed'
+        }[String(code)] || (['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ENETUNREACH'].includes(code)
+            ? 'Network error'
+            : 'Unknown send error');
+    }
+
     async _sendWithBackoff(client, user, payload) {
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
@@ -120,18 +143,30 @@ class BroadcastEngine {
                 this._markSuccess(client);
                 return;
             } catch (error) {
-                if (!this._isRateLimit(error) || attempt === 2) throw error;
-                const retryAfter = Math.min(MAX_CLIENT_DELAY, Math.max(1000, Number(error.retryAfter) || 0));
-                this._markRateLimit(client, retryAfter);
+                if (!this._isTransient(error) || attempt === 2) throw error;
+                const retryAfter = this._isRateLimit(error)
+                    ? Math.min(MAX_CLIENT_DELAY, Math.max(1000, Number(error.retryAfter) || 0))
+                    : Math.min(MAX_CLIENT_DELAY, 500 * (2 ** attempt));
+                if (this._isRateLimit(error)) this._markRateLimit(client, retryAfter);
+                else this._rateState(client).nextAt = Date.now() + retryAfter;
                 await sleep(retryAfter);
             }
         }
     }
 
     async _resolveUser(client, member) {
-        return client.users.cache.get(member.id)
-            ?? await client.users.fetch(member.id).catch(() => null)
-            ?? member.user;
+        const cached = client.users.cache.get(member.id);
+        if (cached) return cached;
+
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                return await client.users.fetch(member.id) || member.user;
+            } catch (error) {
+                if (!this._isTransient(error) || attempt === 2) return member.user || null;
+                await sleep(Math.min(MAX_CLIENT_DELAY, 500 * (2 ** attempt)));
+            }
+        }
+        return member.user || null;
     }
 
     _distribute(members, count) {
@@ -215,6 +250,7 @@ class BroadcastEngine {
             successCount:   0,
             failureCount:   0,
             failedMembers:  [],
+            failureReasons: {},
             startTime:      Date.now(),
             lastUIUpdate:   Date.now(),
             lastUIProcessed: 0,
@@ -305,8 +341,8 @@ class BroadcastEngine {
             } catch (e) {
                 results.failureCount++;
                 results.failedMembers.push(member.id);
-                const reason = { 50007: 'DMs closed', 50013: 'No permission', 10003: 'Unknown user' }[e.code]
-                    || e.message?.slice(0, 80);
+                const reason = this._failureReason(e);
+                results.failureReasons[reason] = (results.failureReasons[reason] || 0) + 1;
                 logger.error(`${client.user.tag} ✗ ${member.user?.tag ?? member.id}: ${reason}`);
             } finally {
                 if (slotAcquired) this._releaseSendSlot(client);
@@ -415,6 +451,9 @@ class BroadcastEngine {
         const bar       = createProgressBar(pct, 20);
         const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
         const footerLabel = embedFooter ? `Footer: ${embedFooter}` : '';
+        const failureSummary = Object.entries(results.failureReasons || {})
+            .map(([reason, count]) => `${reason}: ${count}`)
+            .join(' | ') || 'None';
         const guild     = interaction.guild;
 
         const reportChannelId = process.env.REPORT_CHANNEL_ID || interaction.channelId;
@@ -436,6 +475,7 @@ class BroadcastEngine {
                 `✓ **Accepted:** ${results.successCount}`,
                 `✗ **Failed:** ${results.failureCount}`,
                 `**Processed:** ${results.processedCount} / ${results.totalMembers}`,
+                `**Failure Reasons:** ${failureSummary}`,
                 `**Total Time:** ${Math.floor(elapsed / 60000)}m ${Math.floor((elapsed % 60000) / 1000)}s`,
                 `**Avg Speed:** ~${avgSpeed}/sec`,
                 `**Type:** ${typeLabel}`
@@ -452,6 +492,9 @@ class BroadcastEngine {
         const preview   = message.length > 200 ? message.slice(0, 200) + '…' : message;
         const pct       = results.totalMembers ? Math.floor(results.successCount / results.totalMembers * 100) : 0;
         const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
+        const failureSummary = Object.entries(results.failureReasons || {})
+            .map(([reason, count]) => `${reason}: ${count}`)
+            .join(' | ') || 'None';
 
         const container = buildContainer(config.colors.warning,
             headerSection(guild, `## Broadcast Report`),
@@ -462,6 +505,7 @@ class BroadcastEngine {
                 `**Success:** ${results.successCount}`,
                 `**Failed:** ${results.failureCount}`,
                 `**Rate:** ${pct}%`,
+                `**Failure Reasons:** ${failureSummary}`,
                 `**Type:** ${typeLabel}`
             ].join('\n'))
         );
