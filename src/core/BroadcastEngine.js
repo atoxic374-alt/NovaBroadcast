@@ -12,6 +12,7 @@ const COOLDOWN_TIME      = 900;
 const MEMBER_COOLDOWN    = 100;
 const MIN_CLIENT_DELAY   = 900;
 const MAX_CLIENT_DELAY   = 6000;
+const PREFETCH_PER_CLIENT = 4;
 const REQUESTS_PER_SECOND = 1000 / (COOLDOWN_TIME + MEMBER_COOLDOWN);
 const { sleep, createLogger, createProgressBar, buildContainer, txt, sep, headerSection } = require('./Toolkit');
 
@@ -109,6 +110,12 @@ class BroadcastEngine {
                 await sleep(retryAfter);
             }
         }
+    }
+
+    async _resolveUser(client, member) {
+        return client.users.cache.get(member.id)
+            ?? await client.users.fetch(member.id).catch(() => null)
+            ?? member.user;
     }
 
     _distribute(members, count) {
@@ -226,15 +233,25 @@ class BroadcastEngine {
     async _processQueue({ client, takeNext, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage }) {
         if (!client?.user) return;
 
-        let member;
-        while ((member = takeNext())) {
+        const pending = [];
+        const fillPrefetch = () => {
+            while (pending.length < PREFETCH_PER_CLIENT) {
+                const nextMember = takeNext();
+                if (!nextMember) return;
+                pending.push({ member: nextMember, userPromise: this._resolveUser(client, nextMember) });
+            }
+        };
+
+        fillPrefetch();
+        while (pending.length) {
+            const task = pending.shift();
+            const member = task.member;
+            fillPrefetch();
             try {
                 await this._waitForClient(client);
                 this._incLoad(client);
 
-                let user = client.users.cache.get(member.id)
-                    ?? await client.users.fetch(member.id).catch(() => null)
-                    ?? member.user;
+                const user = await task.userPromise;
 
                 if (!user) throw Object.assign(new Error('Cannot fetch user'), { code: -1 });
 
