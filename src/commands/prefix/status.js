@@ -14,9 +14,13 @@ module.exports = {
         if (!canUse(message.member)) return;
 
         const usage = `- \`${config.prefix}status all [type] <text>\`\n- Types: ${ACTIVITY_TYPES.join(', ')}`;
-        if (args[0] !== 'all') {
+        if (!args.length || args[0]?.toLowerCase() === 'bots') {
             return message.reply({ components: [await botStatusContainer(message.guild)], flags: MessageFlags.IsComponentsV2 });
         }
+        if (args[0].toLowerCase() !== 'all') return reply(message, card(message.guild, config.colors.warning, 'Usage', [
+            `استخدم \`${config.prefix}status\` لعرض حالة البوتات.`,
+            `استخدم \`${config.prefix}status all [type] <text>\` لتغيير النشاط.`
+        ]));
 
         const rest = args.slice(1);
         let type = 'custom';
