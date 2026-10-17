@@ -13,6 +13,7 @@ const MEMBER_COOLDOWN    = 100;
 const MIN_CLIENT_DELAY   = 900;
 const MAX_CLIENT_DELAY   = 6000;
 const PREFETCH_PER_CLIENT = 4;
+const START_CLIENT_CONCURRENCY = 2;
 const REQUESTS_PER_SECOND = 1000 / (COOLDOWN_TIME + MEMBER_COOLDOWN);
 const { sleep, createLogger, createProgressBar, buildContainer, txt, sep, headerSection } = require('./Toolkit');
 
@@ -40,7 +41,9 @@ class BroadcastEngine {
                     delay: COOLDOWN_TIME + MEMBER_COOLDOWN,
                     nextAt: 0,
                     successStreak: 0,
-                    rateLimits: 0
+                    rateLimits: 0,
+                    concurrency: START_CLIENT_CONCURRENCY,
+                    inFlight: 0
                 });
             }
             try {
@@ -75,6 +78,17 @@ class BroadcastEngine {
         if (wait) await sleep(wait);
     }
 
+    async _acquireSendSlot(client) {
+        const state = this._rateState(client);
+        while (state.inFlight >= state.concurrency) await sleep(50);
+        state.inFlight++;
+    }
+
+    _releaseSendSlot(client) {
+        const state = this._rateState(client);
+        state.inFlight = Math.max(0, state.inFlight - 1);
+    }
+
     _markSuccess(client) {
         const state = this._rateState(client);
         state.successStreak++;
@@ -89,6 +103,7 @@ class BroadcastEngine {
         const state = this._rateState(client);
         state.rateLimits++;
         state.successStreak = 0;
+        state.concurrency = 1;
         state.delay = Math.min(MAX_CLIENT_DELAY, Math.max(state.delay + 500, retryAfter));
         state.nextAt = Date.now() + Math.max(state.delay, retryAfter);
     }
@@ -230,7 +245,13 @@ class BroadcastEngine {
         return this._finalize({ interaction, results, message, msgType, embedFooter, embedLink });
     }
 
-    async _processQueue({ client, takeNext, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage }) {
+    async _processQueue(args) {
+        await Promise.all(
+            Array.from({ length: START_CLIENT_CONCURRENCY }, () => this._processLane(args))
+        );
+    }
+
+    async _processLane({ client, takeNext, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage }) {
         if (!client?.user) return;
 
         const pending = [];
@@ -247,7 +268,10 @@ class BroadcastEngine {
             const task = pending.shift();
             const member = task.member;
             fillPrefetch();
+            let slotAcquired = false;
             try {
+                await this._acquireSendSlot(client);
+                slotAcquired = true;
                 await this._waitForClient(client);
                 this._incLoad(client);
 
@@ -266,6 +290,7 @@ class BroadcastEngine {
                     || e.message?.slice(0, 80);
                 logger.error(`${client.user.tag} ✗ ${member.user?.tag ?? member.id}: ${reason}`);
             } finally {
+                if (slotAcquired) this._releaseSendSlot(client);
                 this._decLoad(client);
                 results.processedCount++;
                 const state = this._rateState(client);
