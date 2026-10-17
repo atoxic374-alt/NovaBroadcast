@@ -121,6 +121,15 @@ class CommandRouter {
                                     .setPlaceholder('اكتب رسالة الإرسال هنا...')
                                     .setMaxLength(MAX_BC_LEN)
                                     .setRequired(true)
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('bc_image')
+                                    .setLabel('رابط الصورة (اختياري)')
+                                    .setStyle(TextInputStyle.Short)
+                                    .setPlaceholder('https://example.com/image.png')
+                                    .setMaxLength(512)
+                                    .setRequired(false)
                             )
                         )
                 );
@@ -200,15 +209,6 @@ class CommandRouter {
                                     .setMaxLength(512)
                                     .setRequired(false)
                             ),
-                            new ActionRowBuilder().addComponents(
-                                new TextInputBuilder()
-                                    .setCustomId('embed_image')
-                                    .setLabel('رابط الصورة (اختياري)')
-                                    .setStyle(TextInputStyle.Short)
-                                    .setPlaceholder('https://example.com/image.png')
-                                    .setMaxLength(512)
-                                    .setRequired(false)
-                            )
                         )
                 );
             }
@@ -253,14 +253,17 @@ class CommandRouter {
         try {
             if (interaction.customId === 'modal_bc') {
                 const text   = interaction.fields.getTextInputValue('bc_text').trim();
+                const imageUrl = interaction.fields.getTextInputValue('bc_image').trim() || null;
                 const userId = interaction.user.id;
 
                 if (!text)
                     return interaction.reply({ content: ' لا يمكن أن تكون الرسالة فارغة.', flags: MessageFlags.Ephemeral });
                 if (text.length > MAX_BC_LEN)
                     return interaction.reply({ content: ` Message too long! Max is **${MAX_BC_LEN}** chars. Yours is **${text.length}**.`, flags: MessageFlags.Ephemeral });
+                if (imageUrl && !/^https?:\/\/.+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i.test(imageUrl))
+                    return interaction.reply({ content: ' رابط الصورة غير صالح. استخدم رابط صورة مباشر ينتهي بـ png أو jpg أو gif أو webp.', flags: MessageFlags.Ephemeral });
 
-                this.setBroadcastSession(userId, text, { guildId: interaction.guild?.id });
+                this.setBroadcastSession(userId, text, { guildId: interaction.guild?.id, imageUrl });
 
                 await interaction.reply({ components: [this.buildTypePicker(text, interaction.guild)], flags: MessageFlags.IsComponentsV2 });
                 logger.info(`Modal bc by ${interaction.user.tag}`);
@@ -272,16 +275,11 @@ class CommandRouter {
                 const embedTitle  = interaction.fields.getTextInputValue('embed_title').trim();
                 const embedFooter = interaction.fields.getTextInputValue('embed_footer').trim() || null;
                 const embedLink   = interaction.fields.getTextInputValue('embed_link').trim() || null;
-                const embedImage  = interaction.fields.getTextInputValue('embed_image').trim() || null;
                 const embedColor  = config.colors.main;
 
                 if (embedLink && !/^https?:\/\/.+/.test(embedLink)) {
                     return interaction.reply({ content: ' الرابط غير صالح. يجب أن يبدأ بـ `https://` أو `http://`.', flags: MessageFlags.Ephemeral });
                 }
-                if (embedImage && !/^https?:\/\/.+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i.test(embedImage)) {
-                    return interaction.reply({ content: ' رابط الصورة غير صالح. استخدم رابط صورة مباشر ينتهي بـ png أو jpg أو gif أو webp.', flags: MessageFlags.Ephemeral });
-                }
-
                 const broadcastText = this.getBroadcastText(userId);
                 if (!broadcastText)
                     return interaction.reply({ content: ' انتهت الجلسة. يرجى البدء من جديد.', flags: MessageFlags.Ephemeral });
@@ -294,7 +292,7 @@ class CommandRouter {
                     embedColor,
                     embedFooter,
                     embedLink,
-                    embedImage
+                    embedImage: prev.imageUrl || null
                 });
 
                 await interaction.deferUpdate();
@@ -519,7 +517,7 @@ class CommandRouter {
             embedColor,
             embedFooter,
             embedLink,
-            embedImage: session.embedImage || null
+            embedImage: session.embedImage || session.imageUrl || null
         });
     }
 }

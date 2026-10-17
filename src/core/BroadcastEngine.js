@@ -95,6 +95,12 @@ class BroadcastEngine {
 
             return payload;
         }
+        if (embedImage) {
+            return {
+                content: message,
+                files: [{ attachment: embedImage, name: 'broadcast-image' }]
+            };
+        }
         return { content: message };
     }
 
