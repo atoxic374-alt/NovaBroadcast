@@ -6,8 +6,25 @@ const {
     ActionRowBuilder,
     ThumbnailBuilder
 } = require('discord.js');
+const sharp = require('sharp');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getBotAvatarColor = async (client, fallback = '#FFFFFF') => {
+    try {
+        const url = client?.user?.displayAvatarURL({ extension: 'png', size: 128 });
+        if (!url) return fallback;
+        const { data } = await sharp(await fetch(url).then(response => response.arrayBuffer()))
+            .resize(1, 1)
+            .removeAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+        const [r, g, b] = data;
+        return `#${[r, g, b].map(value => value.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+    } catch {
+        return fallback;
+    }
+};
 
 const createLogger = (context) => {
     const getTimestamp = () => {
@@ -74,6 +91,7 @@ const headerSection = (guild, title, description = null) => {
 
 module.exports = {
     sleep,
+    getBotAvatarColor,
     createLogger,
     createProgressBar,
     buildContainer,

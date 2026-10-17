@@ -58,44 +58,44 @@ class CommandRouter {
     buildTypePicker(text, guild) {
         const preview = text.length > MAX_PREV_LEN ? text.slice(0, MAX_PREV_LEN) + '…' : text;
         return buildContainer(config.colors.main,
-            headerSection(guild, `**## ${config.emojis.dot} Choose Message Type**`, '- Choose how you want to deliver your broadcast message. You can send it as a simple normal text message that appears clean and direct in the member\'s DMs, or as a rich embed with a custom title, accent color, and formatted layout for a more professional and eye-catching appearance.'),
-            txt(`**${config.emojis.right} Message Preview**\n\`\`\`${preview}\`\`\``),
+            headerSection(guild, `**## Choose Message Type**`, '- اختر طريقة إرسال الرسالة. يمكنك إرسال نص عادي أو Embed منسق بعنوان ولون صورة البوت.'),
+            txt(`**Message Preview**\n\`\`\`${preview}\`\`\``),
             sep(),
             new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('bc_type_normal').setEmoji(config.emojis.msg).setLabel('Normal').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('bc_type_embed').setEmoji(config.emojis.emmsg).setLabel('Embed').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('bc_cancel').setEmoji(config.emojis.cancel).setLabel('Cancel').setStyle(ButtonStyle.Danger)
+                new ButtonBuilder().setCustomId('bc_type_normal').setLabel('Normal').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('bc_type_embed').setLabel('Embed').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('bc_cancel').setLabel('Cancel').setStyle(ButtonStyle.Danger)
             )
         );
     }
 
     buildBcPanel(text, msgType = 'normal', guild) {
         const preview = text.length > MAX_PREV_LEN ? text.slice(0, MAX_PREV_LEN) + '…' : text;
-        const typeLabel = msgType === 'embed' ? `${config.emojis.emmsg} Embed` : `${config.emojis.msg} Normal`;
+        const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
         return buildContainer(config.colors.main,
-            headerSection(guild, `**## ${config.emojis.dot} Broadcast Control**`, '- Choose which members will receive your broadcast. You can target __all members__ in the server, only those currently __online (including idle and do-not-disturb)__, or only __offline members__. Review your message preview and broadcast settings below before proceeding to confirmation.'),
-            txt(`**${config.emojis.right} Message Preview**\n\`\`\`${preview}\`\`\`\n**${config.emojis.less} Info:** ${text.length} / ${MAX_BC_LEN} chars · Type: **${typeLabel}**`),
+            headerSection(guild, `**## Broadcast Control**`, '- اختر الأعضاء الذين سيستلمون الإرسال: جميع الأعضاء أو المتصلون أو غير المتصلين. راجع المعاينة قبل التأكيد.'),
+            txt(`**Message Preview**\n\`\`\`${preview}\`\`\`\n**معلومات:** ${text.length} / ${MAX_BC_LEN} chars · Type: **${typeLabel}**`),
             sep(),
             new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('target_all').setEmoji(config.emojis.members).setLabel('All Members').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('target_online').setEmoji(config.emojis.online).setLabel('Online').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('target_offline').setEmoji(config.emojis.offline).setLabel('Offline').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('target_person').setEmoji(config.emojis.person).setLabel('Personne').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('bc_cancel').setEmoji(config.emojis.cancel).setLabel('Cancel').setStyle(ButtonStyle.Danger)
+                new ButtonBuilder().setCustomId('target_all').setLabel('All Members').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('target_online').setLabel('Online').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('target_offline').setLabel('Offline').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('target_person').setLabel('User').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('bc_cancel').setLabel('Cancel').setStyle(ButtonStyle.Danger)
             )
         );
     }
 
     buildConfirmPanel(text, targetLabel, count, msgType = 'normal', guild) {
         const preview = text.length > MAX_PREV_LEN ? text.slice(0, MAX_PREV_LEN) + '…' : text;
-        const typeLabel = msgType === 'embed' ? `${config.emojis.emmsg} Embed` : `${config.emojis.msg} Normal`;
+        const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
         return buildContainer(config.colors.main,
-            headerSection(guild, `**## ${config.emojis.dot} Broadcast Control**`, '- Double-check everything before launching. Review your message preview, confirm the target audience and member count, and verify the message type. Once you click Confirm, the broadcast will begin immediately and cannot be stopped. Make sure all details are correct before proceeding.'),
-            txt(`**${config.emojis.right} Message Preview**\n\`\`\`${preview}\`\`\`\n**${config.emojis.right} Target:** ${targetLabel} — **${count}** members · Type: **${typeLabel}**`),
+            headerSection(guild, `**## Broadcast Control**`, '- راجع المعاينة والجمهور وعدد الأعضاء ونوع الرسالة قبل التشغيل. بعد الضغط على التأكيد يبدأ الإرسال فورًا.'),
+            txt(`**Message Preview**\n\`\`\`${preview}\`\`\`\n**الهدف:** ${targetLabel} — **${count}** أعضاء · Type: **${typeLabel}**`),
             sep(),
             new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('bc_confirm').setEmoji(config.emojis.done).setLabel('Confirm').setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId('bc_cancel').setEmoji(config.emojis.cancel).setLabel('Cancel').setStyle(ButtonStyle.Danger)
+                new ButtonBuilder().setCustomId('bc_confirm').setLabel('Confirm').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('bc_cancel').setLabel('Cancel').setStyle(ButtonStyle.Danger)
             )
         );
     }
@@ -116,9 +116,9 @@ class CommandRouter {
                             new ActionRowBuilder().addComponents(
                                 new TextInputBuilder()
                                     .setCustomId('bc_text')
-                                    .setLabel('Your message')
+                                    .setLabel('رسالتك')
                                     .setStyle(TextInputStyle.Paragraph)
-                                    .setPlaceholder('Type your broadcast message here...')
+                                    .setPlaceholder('اكتب رسالة الإرسال هنا...')
                                     .setMaxLength(MAX_BC_LEN)
                                     .setRequired(true)
                             )
@@ -129,15 +129,15 @@ class CommandRouter {
             if (id === 'cp_Nova_Realm') {
                                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-                await interaction.guild.members.fetch();
-                const members = interaction.guild.members.cache.filter(m => !m.user.bot);
+                await interaction.guild.أعضاء.fetch();
+                const أعضاء = interaction.guild.أعضاء.cache.filter(m => !m.user.bot);
                 const bots    = engine.clients.length;
                 const speed   = engine.requestsPerSecond * bots;
-                const eta     = Math.ceil(members.size / speed);
+                const eta     = Math.ceil(أعضاء.size / speed);
 
                  return interaction.editReply({
                     components: [buildContainer(config.colors.main,
-                        headerSection(interaction.guild, `**## ${config.emojis.dot} System Status**`, `${config.emojis.members} **Members Found:** ${members.size}\n${config.emojis.bot} **Active Bots:** ${bots}\n${config.emojis.speed} **Broadcast Speed:** ~${speed} members/sec\n${config.emojis.time} **Estimated Time:** ~${eta} seconds`),
+                        headerSection(interaction.guild, `**## System Status**`, `**Members Found:** ${أعضاء.size}\n**Active Bots:** ${bots}\n**Broadcast Speed:** ~${speed} أعضاء/sec\n**Estimated Time:** ~${eta} seconds`),
                         sep()
                     )],
                     flags: MessageFlags.IsComponentsV2
@@ -148,7 +148,7 @@ class CommandRouter {
                 this.clearBroadcastSession(userId);
                 return interaction.update({
                     components: [buildContainer(config.colors.canceled,
-                        headerSection(interaction.guild, `**## ${config.emojis.dot} Broadcast Canceled**`, '- The broadcast has been canceled successfully. Your session has been cleared and no messages were sent. You can start a new broadcast at any time by returning to the control panel and clicking the Broadcast button again.')
+                        headerSection(interaction.guild, `**## Broadcast Canceled**`, '- The broadcast has been canceled successfully. Your session has been cleared and no messages were sent. You can start a new broadcast at any time by returning to the control panel and clicking the Broadcast button again.')
                     )],
                     flags: MessageFlags.IsComponentsV2
                 });
@@ -156,7 +156,7 @@ class CommandRouter {
 
             const broadcastText = this.getBroadcastText(userId);
             if (!broadcastText)
-                return interaction.reply({ content: '❌ Session expired. Please start over.', flags: MessageFlags.Ephemeral });
+                return interaction.reply({ content: ' انتهت الجلسة. يرجى البدء من جديد.', flags: MessageFlags.Ephemeral });
 
             if (id === 'bc_type_normal') {
                 const prev = this.getSession(userId) || {};
@@ -176,7 +176,7 @@ class CommandRouter {
                             new ActionRowBuilder().addComponents(
                                 new TextInputBuilder()
                                     .setCustomId('embed_title')
-                                    .setLabel('Embed Title')
+                                    .setLabel('عنوان الـ Embed')
                                     .setStyle(TextInputStyle.Short)
                                     .setPlaceholder('e.g. Announcement')
                                     .setMaxLength(256)
@@ -185,7 +185,7 @@ class CommandRouter {
                             new ActionRowBuilder().addComponents(
                                 new TextInputBuilder()
                                     .setCustomId('embed_footer')
-                                    .setLabel('Footer Text (optional)')
+                                    .setLabel('نص التذييل (اختياري)')
                                     .setStyle(TextInputStyle.Short)
                                     .setPlaceholder('e.g. Nova Realm™ Broadcast • 2026')
                                     .setMaxLength(256)
@@ -194,7 +194,7 @@ class CommandRouter {
                             new ActionRowBuilder().addComponents(
                                 new TextInputBuilder()
                                     .setCustomId('embed_link')
-                                    .setLabel('Button Link (optional)')
+                                    .setLabel('رابط الزر (اختياري)')
                                     .setStyle(TextInputStyle.Short)
                                     .setPlaceholder('e.g. https://discord.gg/z77Akyq2EE')
                                     .setMaxLength(512)
@@ -208,14 +208,14 @@ class CommandRouter {
                 return interaction.showModal(
                     new ModalBuilder()
                         .setCustomId('modal_target_person')
-                        .setTitle('Personne')
+                        .setTitle('User')
                         .addComponents(
                             new ActionRowBuilder().addComponents(
                                 new TextInputBuilder()
                                     .setCustomId('person_user')
-                                    .setLabel('User (ID, Username, or Tag)')
+                                    .setLabel('المستخدم (المعرّف أو الاسم)')
                                     .setStyle(TextInputStyle.Short)
-                                    .setPlaceholder('Enter User ID or Username...')
+                                    .setPlaceholder('أدخل معرّف المستخدم أو اسمه...')
                                     .setMaxLength(100)
                                     .setRequired(true)
                             )
@@ -236,7 +236,7 @@ class CommandRouter {
         } catch (e) {
             logger.error(`handleButton: ${e.message}`, e);
             if (!interaction.replied && !interaction.deferred)
-                interaction.reply({ content: '❌ An error occurred. Please try again.', flags: MessageFlags.Ephemeral });
+                interaction.reply({ content: ' حدث خطأ. يرجى المحاولة مرة أخرى.', flags: MessageFlags.Ephemeral });
         }
     }
 
@@ -247,9 +247,9 @@ class CommandRouter {
                 const userId = interaction.user.id;
 
                 if (!text)
-                    return interaction.reply({ content: '❌ Message cannot be empty.', flags: MessageFlags.Ephemeral });
+                    return interaction.reply({ content: ' لا يمكن أن تكون الرسالة فارغة.', flags: MessageFlags.Ephemeral });
                 if (text.length > MAX_BC_LEN)
-                    return interaction.reply({ content: `❌ Message too long! Max is **${MAX_BC_LEN}** chars. Yours is **${text.length}**.`, flags: MessageFlags.Ephemeral });
+                    return interaction.reply({ content: ` Message too long! Max is **${MAX_BC_LEN}** chars. Yours is **${text.length}**.`, flags: MessageFlags.Ephemeral });
 
                 this.setBroadcastSession(userId, text, { guildId: interaction.guild?.id });
 
@@ -266,12 +266,12 @@ class CommandRouter {
                 const embedColor  = config.colors.main;
 
                 if (embedLink && !/^https?:\/\/.+/.test(embedLink)) {
-                    return interaction.reply({ content: '❌ Invalid link. Must start with `https://` or `http://`.', flags: MessageFlags.Ephemeral });
+                    return interaction.reply({ content: ' الرابط غير صالح. يجب أن يبدأ بـ `https://` أو `http://`.', flags: MessageFlags.Ephemeral });
                 }
 
                 const broadcastText = this.getBroadcastText(userId);
                 if (!broadcastText)
-                    return interaction.reply({ content: '❌ Session expired. Please start over.', flags: MessageFlags.Ephemeral });
+                    return interaction.reply({ content: ' انتهت الجلسة. يرجى البدء من جديد.', flags: MessageFlags.Ephemeral });
 
                 const prev = this.getSession(userId) || {};
                 this.setBroadcastSession(userId, broadcastText, {
@@ -296,7 +296,7 @@ class CommandRouter {
                 const userId = interaction.user.id;
                 const broadcastText = this.getBroadcastText(userId);
                 if (!broadcastText) {
-                    return interaction.reply({ content: '❌ Session expired. Please start over.', flags: MessageFlags.Ephemeral });
+                    return interaction.reply({ content: ' انتهت الجلسة. يرجى البدء من جديد.', flags: MessageFlags.Ephemeral });
                 }
 
                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -306,12 +306,12 @@ class CommandRouter {
 
                 let targetMember = null;
                 if (/^\d{17,20}$/.test(cleanId)) {
-                    targetMember = await interaction.guild.members.fetch(cleanId).catch(() => null);
+                    targetMember = await interaction.guild.أعضاء.fetch(cleanId).catch(() => null);
                 }
 
                 if (!targetMember) {
                     try {
-                        const searchResults = await interaction.guild.members.search({ query: input, limit: 5 });
+                        const searchResults = await interaction.guild.أعضاء.search({ query: input, limit: 5 });
                         if (searchResults?.size > 0) {
                             targetMember = searchResults.find(m =>
                                 m.user.username.toLowerCase() === input.toLowerCase() ||
@@ -325,7 +325,7 @@ class CommandRouter {
                 }
 
                 if (!targetMember) {
-                    targetMember = interaction.guild.members.cache.find(m =>
+                    targetMember = interaction.guild.أعضاء.cache.find(m =>
                         m.id === cleanId ||
                         m.user.username.toLowerCase() === input.toLowerCase() ||
                         m.user.tag.toLowerCase() === input.toLowerCase() ||
@@ -336,7 +336,7 @@ class CommandRouter {
                 if (!targetMember) {
                     return interaction.editReply({
                         components: [buildContainer(config.colors.error,
-                            headerSection(interaction.guild, `**## ${config.emojis.dot} User Not Found**`, `- Please check the server and enter the correct user.`),
+                            headerSection(interaction.guild, `**## User Not Found**`, `- Please check the server and enter the correct user.`),
                             sep()
                         )],
                         flags: MessageFlags.IsComponentsV2
@@ -346,7 +346,7 @@ class CommandRouter {
                 if (targetMember.user.bot) {
                     return interaction.editReply({
                         components: [buildContainer(config.colors.error,
-                            headerSection(interaction.guild, `**## ${config.emojis.dot} Invalid User**`, `- Cannot send a direct message to a bot.`),
+                            headerSection(interaction.guild, `**## Invalid User**`, `- Cannot send a direct message to a bot.`),
                             sep()
                         )],
                         flags: MessageFlags.IsComponentsV2
@@ -398,9 +398,9 @@ class CommandRouter {
                     if (interaction.message?.editable) {
                         await interaction.message.edit({
                             components: [buildContainer(config.colors.success,
-                                headerSection(interaction.guild, `**## ${config.emojis.dot} Message Delivered**`, `- The broadcast message has been sent successfully to **${targetMember.user.tag}** (<@${targetMember.id}>). The recipient has been notified, and the broadcast process has been completed successfully.`),
+                                headerSection(interaction.guild, `**## Message Delivered**`, `- The broadcast message has been sent successfully to **${targetMember.user.tag}** (<@${targetMember.id}>). The recipient has been notified, and the broadcast process has been completed successfully.`),
                                 sep(false),
-                                txt(`**${config.emojis.right} Recipient:** ${targetMember.user.tag} (\`${targetMember.id}\`)\n**${config.emojis.less} Type:** ${msgType === 'embed' ? 'Embed' : 'Normal'}`),
+                                txt(`**Recipient:** ${targetMember.user.tag} (\`${targetMember.id}\`)\n**Type:** ${msgType === 'embed' ? 'Embed' : 'Normal'}`),
                                 sep()
                             )],
                             flags: MessageFlags.IsComponentsV2
@@ -409,7 +409,7 @@ class CommandRouter {
 
                     return interaction.editReply({
                         components: [buildContainer(config.colors.success,
-                            headerSection(interaction.guild, `**## ${config.emojis.dot} Message Sent**`, `- Message successfully sent to **${targetMember.user.tag}** (<@${targetMember.id}>)!`),
+                            headerSection(interaction.guild, `**## Message Sent**`, `- Message successfully sent to **${targetMember.user.tag}** (<@${targetMember.id}>)!`),
                             sep()
                         )],
                         flags: MessageFlags.IsComponentsV2
@@ -417,9 +417,9 @@ class CommandRouter {
                 } else {
                     return interaction.editReply({
                         components: [buildContainer(config.colors.error,
-                            headerSection(interaction.guild, `**## ${config.emojis.dot} Delivery Failed**`, `- Could not send message to **${targetMember.user.tag}** (<@${targetMember.id}>). Their DMs may be closed or the bot is blocked.`),
+                            headerSection(interaction.guild, `**## Delivery Failed**`, `- Could not send message to **${targetMember.user.tag}** (<@${targetMember.id}>). Their DMs may be closed or the bot is blocked.`),
                             sep(false),
-                            txt(`**${config.emojis.right} Recipient:** ${targetMember.user.tag} (\`${targetMember.id}\`)\n**${config.emojis.less} Error:** ${sendError || 'DMs closed'}`),
+                            txt(`**Recipient:** ${targetMember.user.tag} (\`${targetMember.id}\`)\n**Error:** ${sendError || 'DMs closed'}`),
                             sep()
                         )],
                         flags: MessageFlags.IsComponentsV2
@@ -435,22 +435,22 @@ class CommandRouter {
     }
 
     async _handleTargetSelect(interaction, target, broadcastText) {
-        await interaction.guild.members.fetch({ withPresences: true });
-        const all = interaction.guild.members.cache.filter(m => !m.user.bot);
+        await interaction.guild.أعضاء.fetch({ withPresences: true });
+        const all = interaction.guild.أعضاء.cache.filter(m => !m.user.bot);
 
         let targetMembers, targetLabel;
         switch (target) {
             case 'all':
                 targetMembers = all;
-                targetLabel   = `${config.emojis.members} All Members`;
+                targetLabel   = `All Members`;
                 break;
             case 'online':
                 targetMembers = all.filter(m => m.presence && ['online', 'idle', 'dnd'].includes(m.presence.status));
-                targetLabel   = `${config.emojis.online} Online Members`;
+                targetLabel   = `Online Members`;
                 break;
             case 'offline':
                 targetMembers = all.filter(m => !m.presence || m.presence.status === 'offline');
-                targetLabel   = `${config.emojis.offline} Offline Members`;
+                targetLabel   = `Offline Members`;
                 break;
             default: return;
         }
@@ -463,7 +463,7 @@ class CommandRouter {
             components: [this.buildConfirmPanel(broadcastText, targetLabel, targetMembers.size, msgType, interaction.guild)],
             flags: MessageFlags.IsComponentsV2
         });
-        logger.info(`Target: ${targetLabel} (${targetMembers.size}) by ${interaction.user.tag}`);
+        logger.info(`الهدف: ${targetLabel} (${targetMembers.size}) by ${interaction.user.tag}`);
     }
 
     async _handleConfirm(interaction) {
@@ -474,7 +474,7 @@ class CommandRouter {
         if (!text || !session?.targetMembers) {
             return interaction.update({
                 components: [buildContainer(config.colors.error,
-                    headerSection(interaction.guild, `**## ${config.emojis.dot} Session Expired**`, '- Your session has expired. Please start over from the control panel.')
+                    headerSection(interaction.guild, `**## Session Expired**`, '- Your session has expired. Please start over from the control panel.')
                 )],
                 flags: MessageFlags.IsComponentsV2
             });
@@ -482,7 +482,7 @@ class CommandRouter {
 
         await interaction.update({
             components: [buildContainer(config.colors.warning,
-                headerSection(interaction.guild, `**## ${config.emojis.dot} Processing Broadcast**`, `- Starting broadcast to **${session.targetMembers.size}** members...`)
+                headerSection(interaction.guild, `**## Processing Broadcast**`, `- Starting broadcast to **${session.targetMembers.size}** أعضاء...`)
             )],
             flags: MessageFlags.IsComponentsV2
         });
@@ -498,7 +498,7 @@ class CommandRouter {
 
         await engine.startBroadcast({
             interaction,
-            members: savedMembers,
+            أعضاء: savedMembers,
             message: savedText,
             msgType: savedType,
             embedTitle,

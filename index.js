@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, Partials, REST, Routes, Collection, Events } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const config = require('./config.json');
+const config = require('./config');
 
 // Tokens are read from environment variables first (Railway Variables), then config.json.
 // Supported: BOT_TOKENS (comma / newline separated), BOT_TOKEN, BOT_TOKEN_1 ... BOT_TOKEN_10

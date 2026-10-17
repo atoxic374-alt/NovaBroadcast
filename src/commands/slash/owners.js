@@ -5,7 +5,7 @@ const { canUse } = require('../../core/Access');
 const owners = require('../../core/Owners');
 
 const reply = (interaction, color, title, body) => ({
-    components: [buildContainer(color, headerSection(interaction.guild, `**## ${config.emojis.dot} ${title}**`, body), sep())],
+    components: [buildContainer(color, headerSection(interaction.guild, `**## ${title}**`, body), sep())],
     flags: MessageFlags.IsComponentsV2
 });
 
@@ -27,7 +27,7 @@ module.exports = {
 
         const sub = interaction.options.getSubcommand();
         if (sub === 'list') {
-            const lines = owners.list().map(id => `${config.emojis.dot} <@${id}> (\`${id}\`)`).join('\n') || 'None';
+            const lines = owners.list().map(id => `<@${id}> (\`${id}\`)`).join('\n') || 'None';
             return interaction.editReply(reply(interaction, config.colors.main, 'Owners', lines));
         }
 

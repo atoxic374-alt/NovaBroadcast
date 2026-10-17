@@ -25,29 +25,29 @@ module.exports = {
                     ?? await client.guilds.fetch(guildId).catch(() => null);
 
                 if (!guild) {
-                    results.push({ tag: client.user.tag, status: '⚠️ Not in server' });
+                    results.push({ tag: client.user.tag, status: 'ليس في الخادم' });
                     continue;
                 }
 
                 await guild.leave();
-                results.push({ tag: client.user.tag, status: '✅ Left' });
+                results.push({ tag: client.user.tag, status: 'غادر بنجاح' });
                 logger.info(`${client.user.tag} left guild ${guildId}`);
             } catch (e) {
-                results.push({ tag: client.user.tag, status: `❌ Failed: ${e.message.slice(0, 50)}` });
+                results.push({ tag: client.user.tag, status: `فشل: ${e.message.slice(0, 50)}` });
                 logger.error(`${client.user.tag} failed to leave: ${e.message}`);
             }
         }
 
-        const lines = results.map(r => `${config.emojis.dot} **${r.tag}** — ${r.status}`).join('\n');
+        const lines = results.map(r => `**${r.tag}** — ${r.status}`).join('\n');
 
         return message.reply({
             components: [buildContainer(config.colors.error,
                 headerSection(message.guild,
-                    `**## ${config.emojis.dot} Bots Left Server**`,
+                    `**## Bots Left Server**`,
                     `- All secondary bots have been instructed to leave the server. The main bot stays.`
                 ),
                 sep(false),
-                txt(`**${config.emojis.right} Results:**\n${lines}`),
+                txt(`**النتائج:**\n${lines}`),
                 sep()
             )],
             flags: MessageFlags.IsComponentsV2

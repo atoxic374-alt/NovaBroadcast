@@ -54,16 +54,16 @@ class BroadcastEngine {
         if (n > 0) this.clientLoadMap.set(client.user.id, n - 1);
     }
 
-    _distribute(members, count) {
+    _distribute(أعضاء, count) {
         const chunks = Array.from({ length: count }, () => []);
-        members.forEach((m, i) => chunks[i % count].push(m));
-        logger.info(`Distributed ${members.length} members → [${chunks.map(c => c.length).join(', ')}]`);
+        أعضاء.forEach((m, i) => chunks[i % count].push(m));
+        logger.info(`Distributed ${أعضاء.length} أعضاء → [${chunks.map(c => c.length).join(', ')}]`);
         return chunks;
     }
 
     _buildPayload(message, msgType, embedTitle, embedColor, embedFooter, guild, embedLink = null) {
         if (msgType === 'embed') {
-            const color = parseInt((embedColor || config.colors.main).replace('#', ''), 16);
+            const color = parseInt(config.colors.main.replace('#', ''), 16);
             const embed = new EmbedBuilder()
                 .setTitle(embedTitle || 'Announcement')
                 .setDescription(message)
@@ -96,8 +96,8 @@ class BroadcastEngine {
         return { content: message };
     }
 
-    async startBroadcast({ interaction, members, message, msgType = 'normal', embedTitle = null, embedColor = null, embedFooter = null, embedLink = null }) {
-        const totalMembers = members.size;
+    async startBroadcast({ interaction, أعضاء, message, msgType = 'normal', embedTitle = null, embedColor = null, embedFooter = null, embedLink = null }) {
+        const totalMembers = أعضاء.size;
         const valid        = this.clients.filter(c => c?.user?.id);
         const clientCount  = valid.length;
 
@@ -117,29 +117,29 @@ class BroadcastEngine {
         const etaMs  = ((COOLDOWN_TIME + MEMBER_COOLDOWN) / clientCount) * totalMembers;
         const etaMin = Math.floor(etaMs / 60000);
         const etaSec = Math.floor((etaMs % 60000) / 1000);
-        const typeLabel = msgType === 'embed' ? `${config.emojis.emmsg} Embed` : `${config.emojis.msg} Normal`;
+        const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
 
         await this._updateUI(interaction, buildContainer(config.colors.main,
-            headerSection(interaction.guild, `**## ${config.emojis.dot} Processing Broadcast**`, `- Starting broadcast to **${totalMembers}** members. Please wait while the system delivers your message.`),
+            headerSection(interaction.guild, `**## Processing Broadcast**`, `- Starting broadcast to **${totalMembers}** أعضاء. Please wait while the system delivers your message.`),
             sep(false),
-            txt(`**${config.emojis.less} Progress:** ░░░░░░░░░░ 0%`),
+            txt(`**Progress:** ░░░░░░░░░░ 0%`),
             txt([
-                `${config.emojis.dot} **Target:** ${totalMembers} members`,
-                `${config.emojis.dot} **ETA:** ${etaMin}m ${etaSec}s`,
-                `${config.emojis.dot} **Speed:** ~${rps}/sec`,
-                `${config.emojis.dot} **Bots:** ${clientCount}`,
-                `${config.emojis.dot} **Type:** ${typeLabel}`
+                `**الهدف:** ${totalMembers} أعضاء`,
+                `**ETA:** ${etaMin}m ${etaSec}s`,
+                `**Speed:** ~${rps}/sec`,
+                `**Bots:** ${clientCount}`,
+                `**Type:** ${typeLabel}`
             ].join('\n')),
             sep()
         ));
 
-        const chunks = this._distribute([...members.values()], clientCount);
+        const chunks = this._distribute([...أعضاء.values()], clientCount);
 
         await Promise.all(chunks.map((chunk, i) =>
             this._processChunk({ client: valid[i % clientCount], chunk, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink })
         ));
 
-        logger.info(`Broadcast done — ✅ ${results.successCount}  ❌ ${results.failureCount}`);
+        logger.info(`Broadcast done —  ${results.successCount}   ${results.failureCount}`);
         return this._finalize({ interaction, results, message, msgType, embedFooter, embedLink });
     }
 
@@ -149,7 +149,7 @@ class BroadcastEngine {
             return;
         }
 
-        logger.info(`${client.user.tag} → ${chunk.length} members`);
+        logger.info(`${client.user.tag} → ${chunk.length} أعضاء`);
 
         for (const member of chunk) {
             try {
@@ -199,16 +199,16 @@ class BroadcastEngine {
         const bar       = createProgressBar(pct);
 
         await this._updateUI(interaction, buildContainer(config.colors.main,
-            headerSection(interaction.guild, `**## ${config.emojis.dot} Processing Broadcast**`, `- Broadcast is currently in progress. Real-time stats are updated automatically.`),
+            headerSection(interaction.guild, `**## Processing Broadcast**`, `- جاري تنفيذ الإرسال. يتم تحديث الإحصائيات تلقائيًا.`),
             sep(false),
-            txt(`**${config.emojis.less} ${bar} ${pct}%**`),
+            txt(`**${bar} ${pct}%**`),
             txt([
-                `${config.emojis.dot} **Progress:** ${processed} / ${results.totalMembers}`,
-                `${config.emojis.dot} **Success:** ${results.successCount}   ${config.emojis.dot} **Failed:** ${results.failureCount}`,
-                `${config.emojis.dot} **Time Left:** ${etaMin}m ${etaSec}s`,
-                `${config.emojis.dot} **Elapsed:** ${Math.floor(elapsed / 60000)}m ${Math.floor((elapsed % 60000) / 1000)}s`,
-                `${config.emojis.dot} **Speed:** ~${curSpeed}/sec`,
-                `${config.emojis.dot} **Bots:** ${this.clients.length}`
+                `**Progress:** ${processed} / ${results.totalMembers}`,
+                `**Success:** ${results.successCount}   **Failed:** ${results.failureCount}`,
+                `**Time Left:** ${etaMin}m ${etaSec}s`,
+                `**Elapsed:** ${Math.floor(elapsed / 60000)}m ${Math.floor((elapsed % 60000) / 1000)}s`,
+                `**Speed:** ~${curSpeed}/sec`,
+                `**Bots:** ${this.clients.length}`
             ].join('\n')),
             sep()
         ));
@@ -219,7 +219,7 @@ class BroadcastEngine {
         const avgSpeed  = elapsed > 0 ? Math.round(results.totalMembers / (elapsed / 1000)) : 0;
         const pct       = results.totalMembers ? Math.floor(results.successCount / results.totalMembers * 100) : 0;
         const bar       = createProgressBar(pct);
-        const typeLabel = msgType === 'embed' ? `${config.emojis.emmsg} Embed` : `${config.emojis.msg} Normal`;
+        const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
         const footerLabel = embedFooter ? `Footer: ${embedFooter}` : '';
         const guild     = interaction.guild;
 
@@ -235,16 +235,16 @@ class BroadcastEngine {
         }
 
         await this._updateUI(interaction, buildContainer(config.colors.success,
-            headerSection(guild, '**## <:wdot:1524131703482876004> Broadcast Completed**', '- Your broadcast has finished successfully. A detailed report has been sent to the report channel.'),
+            headerSection(guild, '**## Broadcast Completed**', '- اكتمل الإرسال بنجاح. تم إرسال التقرير التفصيلي إلى قناة التقارير.'),
             sep(false),
             txt([
-                `**<:less:1524194424303783976> ${bar} ${pct}%**`,
-                `${config.emojis.dot} **Total:** ${results.totalMembers}`,
-                `${config.emojis.dot} **Success:** ${results.successCount}`,
-                `${config.emojis.dot} **Failed:** ${results.failureCount}`,
-                `${config.emojis.dot} **Total Time:** ${Math.floor(elapsed / 60000)}m ${Math.floor((elapsed % 60000) / 1000)}s`,
-                `${config.emojis.dot} **Avg Speed:** ~${avgSpeed}/sec`,
-                `${config.emojis.dot} **Type:** ${typeLabel}`
+                `**${bar} ${pct}%**`,
+                `**Total:** ${results.totalMembers}`,
+                `**Success:** ${results.successCount}`,
+                `**Failed:** ${results.failureCount}`,
+                `**Total Time:** ${Math.floor(elapsed / 60000)}m ${Math.floor((elapsed % 60000) / 1000)}s`,
+                `**Avg Speed:** ~${avgSpeed}/sec`,
+                `**Type:** ${typeLabel}`
             ].join('\n')),
             sep()
         ));
@@ -255,18 +255,18 @@ class BroadcastEngine {
     _reportContainer(results, message, msgType = 'normal', embedFooter = null, embedLink = null, guild = null) {
         const preview   = message.length > 200 ? message.slice(0, 200) + '…' : message;
         const pct       = results.totalMembers ? Math.floor(results.successCount / results.totalMembers * 100) : 0;
-        const typeLabel = msgType === 'embed' ? `${config.emojis.emmsg} Embed` : `${config.emojis.msg} Normal`;
+        const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
 
         const container = buildContainer(config.colors.warning,
-            headerSection(guild, `## ${config.emojis.dot} Broadcast Report`),
+            headerSection(guild, `## Broadcast Report`),
             sep(false),
-            txt(`**${config.emojis.right} Message:**\n\`\`\`${preview}\`\`\``),
+            txt(`**Message:**\n\`\`\`${preview}\`\`\``),
             txt([
-                `${config.emojis.dot} **Total:** ${results.totalMembers}`,
-                `${config.emojis.dot} **Success:** ${results.successCount}`,
-                `${config.emojis.dot} **Failed:** ${results.failureCount}`,
-                `${config.emojis.dot} **Rate:** ${pct}%`,
-                `${config.emojis.dot} **Type:** ${typeLabel}`
+                `**Total:** ${results.totalMembers}`,
+                `**Success:** ${results.successCount}`,
+                `**Failed:** ${results.failureCount}`,
+                `**Rate:** ${pct}%`,
+                `**Type:** ${typeLabel}`
             ].join('\n'))
         );
 

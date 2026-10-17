@@ -5,12 +5,19 @@
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": ["discord", "broadcast", "multi-client"],
+  "keywords": [
+    "discord",
+    "broadcast",
+    "multi-client"
+  ],
   "author": "Nova Realm™",
   "license": "MIT",
   "description": "Advanced Discord broadcast system with multi-client support",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "discord.js": "^14.19.0"
+    "discord.js": "^14.19.0",
+    "sharp": "^0.33.5"
   }
 }

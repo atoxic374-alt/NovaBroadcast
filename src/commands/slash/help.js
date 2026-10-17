@@ -11,12 +11,11 @@ module.exports = {
         const speed = engine.requestsPerSecond * bots;
         const guild = interaction.guild;
         const p = config.prefix;
-        const e = config.emojis;
 
         const header = new SectionBuilder()
             .addTextDisplayComponents(
                 txt(`**## ${e.dot} Help**`),
-                txt('- Welcome to the help panel. Here you will find everything you need to know about using the Broadcast system, including available commands, system capabilities, and how to get started with your first broadcast campaign.')
+                txt('- مرحبًا بك في لوحة المساعدة. ستجد هنا الأوامر المتاحة وإمكانات النظام وطريقة بدء أول حملة إرسال.')
             );
         if (guild?.iconURL()) {
             header.setThumbnailAccessory(
@@ -27,13 +26,13 @@ module.exports = {
         const container = buildContainer(config.colors.main,
             header,
             txt(
-                `**${e.less} Control Panel**\n- Use \`${p}cp\` or \`/cp\` to open the main control panel. From there you can launch broadcasts and check system status with a single button click.\n` +
-                `**${e.right} Broadcast**\n- Send direct message broadcasts to your entire server or filter by member status (all, online, or offline). Choose between normal text messages or rich embeds with custom titles and colors.\n` +
-                `**${e.right} Status**\n- View real-time statistics including total member count, active bot clients, estimated broadcast completion time, and current processing speed.\n` +
+                `**${e.less} Control Panel**\n- Use \`${p}cp\` or \`/cp\` لفتح لوحة التحكم الرئيسية، ومن خلالها يمكنك بدء الإرسال ومراجعة حالة النظام بضغطة واحدة.\n` +
+                `**${e.right} Broadcast**\n- أرسل رسائل مباشرة إلى جميع أعضاء الخادم أو صفِّهم حسب الحالة. يمكنك الاختيار بين رسالة عادية أو Embed.\n` +
+                `**${e.right} Status**\n- اعرض الإحصائيات الفورية، مثل عدد الأعضاء والبوتات النشطة والوقت المتوقع وسرعة الإرسال.\n` +
                 `**${e.less} Bot Management**\n` +
-                `**${e.right} Add Bots** — \`${p}add\` or \`/add\`\n- Generate invite links for all secondary bots (no special permissions needed). Use this to quickly add all bots to a new server.\n` +
-                `**${e.right} Remove Bots** — \`${p}left\` or \`/left\`\n- Make all secondary bots leave the current server (the main bot stays). Useful when you want to clean up after a broadcast campaign.\n` +
-                `**${e.less} System Info**\n- ${bots} active bots | ~${speed} members/sec | Engine: discord.js v14.`
+                `**${e.right} Add Bots** — \`${p}add\` or \`/add\`\n- أنشئ روابط دعوة لجميع البوتات الإضافية لإضافتها بسرعة إلى خادم جديد.\n` +
+                `**${e.right} Remove Bots** — \`${p}left\` or \`/left\`\n- اجعل البوتات الإضافية تغادر الخادم الحالي، بينما يبقى البوت الرئيسي.\n` +
+                `**${e.less} System Info**\n- ${bots} active bots | ~${speed} أعضاء/sec | Engine: discord.js v14.`
             ),
             sep()
         );

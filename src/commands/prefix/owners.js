@@ -5,7 +5,7 @@ const { canUse } = require('../../core/Access');
 const owners = require('../../core/Owners');
 
 const send = (message, color, title, body) => message.reply({
-    components: [buildContainer(color, headerSection(message.guild, `**## ${config.emojis.dot} ${title}**`, body), sep())],
+    components: [buildContainer(color, headerSection(message.guild, `**## ${title}**`, body), sep())],
     flags: MessageFlags.IsComponentsV2
 });
 
@@ -18,7 +18,7 @@ module.exports = {
 
         const sub = (args[0] || '').toLowerCase();
         if (sub === 'list') {
-            const lines = owners.list().map(id => `${config.emojis.dot} <@${id}> (\`${id}\`)`).join('\n') || 'None';
+            const lines = owners.list().map(id => `<@${id}> (\`${id}\`)`).join('\n') || 'None';
             return send(message, config.colors.main, 'Owners', lines);
         }
 
