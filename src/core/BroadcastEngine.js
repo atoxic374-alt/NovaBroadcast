@@ -28,6 +28,7 @@ class BroadcastEngine {
         this.cooldownTime      = COOLDOWN_TIME;
         this.memberCooldown    = MEMBER_COOLDOWN;
         this.requestsPerSecond = REQUESTS_PER_SECOND;
+        this.uiUpdateQueues    = new WeakMap();
     }
 
     async initialize(clients) {
@@ -550,10 +551,19 @@ class BroadcastEngine {
     }
 
     async _updateUI(interaction, container) {
-        if (!interaction?.editReply) return;
-        try {
-            await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
-        } catch (e) { logger.error('UI update failed:', e); }
+        const edit = interaction?.message?.edit
+            ? (payload) => interaction.message.edit(payload)
+            : interaction?.editReply
+                ? (payload) => interaction.editReply(payload)
+                : null;
+        if (!edit) return;
+        const previous = this.uiUpdateQueues.get(interaction) || Promise.resolve();
+        const next = previous.catch(() => null).then(() => edit({
+            components: [container],
+            flags: MessageFlags.IsComponentsV2
+        })).catch((e) => logger.error('UI update failed:', e));
+        this.uiUpdateQueues.set(interaction, next);
+        await next;
     }
 }
 

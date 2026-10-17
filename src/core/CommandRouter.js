@@ -13,6 +13,7 @@ const {
 const config = require('../../config');
 const { canUse } = require('./Access');
 const engine = require('./BroadcastEngine');
+const { botStatusContainer } = require('./Branding');
 const { createLogger, buildContainer, txt, sep, headerSection } = require('./Toolkit');
 
 const logger = createLogger('CommandRouter');
@@ -128,19 +129,9 @@ class CommandRouter {
             }
 
             if (id === 'cp_Nova_Realm') {
-                                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-                await interaction.guild.members.fetch();
-                const members = interaction.guild.members.cache.filter(m => !m.user.bot);
-                const bots    = engine.clients.length;
-                const speed   = engine.requestsPerSecond * bots;
-                const eta     = Math.ceil(members.size / speed);
-
-                 return interaction.editReply({
-                    components: [buildContainer(config.colors.main,
-                        headerSection(interaction.guild, `**## System Status**`, `**Members Found:** ${members.size}\n**Active Bots:** ${bots}\n**Broadcast Speed:** ~${speed} أعضاء/sec\n**Estimated Time:** ~${eta} seconds`),
-                        sep()
-                    )],
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                return interaction.editReply({
+                    components: [await botStatusContainer(interaction.guild)],
                     flags: MessageFlags.IsComponentsV2
                 });
             }

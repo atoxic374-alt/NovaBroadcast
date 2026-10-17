@@ -1,7 +1,7 @@
 const { MessageFlags } = require('discord.js');
 const config = require('../../../config');
 const { canUse } = require('../../core/Access');
-const { forEachBot, card } = require('../../core/Branding');
+const { forEachBot, card, botStatusContainer } = require('../../core/Branding');
 const { setActivity, applyTo, ACTIVITY_TYPES } = require('../../core/BotState');
 
 const reply = (message, container) => message.reply({ components: [container], flags: MessageFlags.IsComponentsV2 });
@@ -14,7 +14,9 @@ module.exports = {
         if (!canUse(message.member)) return;
 
         const usage = `- \`${config.prefix}status all [type] <text>\`\n- Types: ${ACTIVITY_TYPES.join(', ')}`;
-        if (args[0] !== 'all') return reply(message, card(message.guild, config.colors.warning, 'Usage', [usage]));
+        if (args[0] !== 'all') {
+            return message.reply({ components: [await botStatusContainer(message.guild)], flags: MessageFlags.IsComponentsV2 });
+        }
 
         const rest = args.slice(1);
         let type = 'custom';
