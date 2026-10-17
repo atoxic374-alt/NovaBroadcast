@@ -176,9 +176,9 @@ class BroadcastEngine {
                 this._decLoad(client);
                 results.processedCount++;
 
-                const pct = Math.floor(results.processedCount / results.totalMembers * 100);
+                const pct = results.totalMembers ? Math.floor(results.processedCount / results.totalMembers * 100) : 100;
                 const now = Date.now();
-                if (pct % 5 === 0 || now - results.lastUIUpdate > 3000 || results.processedCount === 1) {
+                if (now - results.lastUIUpdate > 3000 || results.processedCount === 1) {
                     results.lastUIUpdate = now;
                     await this._progressUI(interaction, results, pct);
                 }
@@ -217,8 +217,8 @@ class BroadcastEngine {
 
     async _finalize({ interaction, results, message, msgType = 'normal', embedFooter = null, embedLink = null }) {
         const elapsed   = Date.now() - results.startTime;
-        const avgSpeed  = Math.round(results.totalMembers / (elapsed / 1000));
-        const pct       = Math.floor(results.successCount / results.totalMembers * 100);
+        const avgSpeed  = elapsed > 0 ? Math.round(results.totalMembers / (elapsed / 1000)) : 0;
+        const pct       = results.totalMembers ? Math.floor(results.successCount / results.totalMembers * 100) : 0;
         const bar       = createProgressBar(pct);
         const typeLabel = msgType === 'embed' ? `${config.emojis.emmsg} Embed` : `${config.emojis.msg} Normal`;
         const footerLabel = embedFooter ? `Footer: ${embedFooter}` : '';
@@ -254,7 +254,7 @@ class BroadcastEngine {
 
     _reportContainer(results, message, msgType = 'normal', embedFooter = null, embedLink = null, guild = null) {
         const preview   = message.length > 200 ? message.slice(0, 200) + '…' : message;
-        const pct       = Math.floor(results.successCount / results.totalMembers * 100);
+        const pct       = results.totalMembers ? Math.floor(results.successCount / results.totalMembers * 100) : 0;
         const typeLabel = msgType === 'embed' ? `${config.emojis.emmsg} Embed` : `${config.emojis.msg} Normal`;
 
         const container = buildContainer(config.colors.warning,

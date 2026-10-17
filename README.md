@@ -1,4 +1,4 @@
-# NovaBroadcast v1.0
+# NovaBroadcast v3.0
 
 Advanced multi-client Discord broadcast system built with discord.js v14.  
 Send DM broadcasts to your server members — fast, clean, and fully button-driven.
@@ -92,9 +92,22 @@ Edit `config.json` before starting:
 |-------|-------------|
 | `tokens` | Bot tokens — add up to 5 for faster broadcasts |
 | `guildId` | Your server ID |
-| `broadcastRoleId` | Only members with this role can use the broadcast |
+| `bcRoleId` | Only members with this role can use the broadcast |
 | `reportChannelId` | Channel where the post-broadcast report is sent |
 | `emojis` | Your emojis ID |
+
+### Environment variables (recommended — Railway)
+
+Do NOT commit tokens to `config.json`. Set these variables instead:
+
+| Variable | Description |
+|----------|-------------|
+| `BOT_TOKEN` | Main bot token (handles commands, panels, reports) |
+| `BOT_TOKEN_2` … `BOT_TOKEN_5` | Optional extra bots for faster broadcasts |
+| `BOT_TOKENS` | Alternative: all tokens, comma separated |
+| `GUILD_ID`, `BC_ROLE_ID`, `REPORT_CHANNEL_ID` | Optional overrides for `config.json` |
+
+Enable **Server Members**, **Presence** and **Message Content** privileged intents for every bot in the Discord Developer Portal.
 
 ### Running
 
