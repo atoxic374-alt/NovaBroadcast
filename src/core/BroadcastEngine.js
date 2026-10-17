@@ -32,7 +32,6 @@ class BroadcastEngine {
             if (!client?.user) { logger.warn('Skipping invalid client'); continue; }
             this.clientLoadMap.set(client.user.id, 0);
             try {
-                if (config.server.guildId) await client.guilds.fetch(config.server.guildId);
                 valid.push(client);
                 logger.info(`Client validated: ${client.user.tag}`);
             } catch (e) {
@@ -224,9 +223,10 @@ class BroadcastEngine {
         const footerLabel = embedFooter ? `Footer: ${embedFooter}` : '';
         const guild     = interaction.guild;
 
-        if (config.server.reportChannelId) {
+        const reportChannelId = process.env.REPORT_CHANNEL_ID || interaction.channelId;
+        if (reportChannelId) {
             try {
-                const ch = await this.clients[0].channels.fetch(config.server.reportChannelId);
+                const ch = await this.clients[0].channels.fetch(reportChannelId);
                 if (ch) await ch.send({
                     components: [this._reportContainer(results, message, msgType, embedFooter, embedLink, guild)],
                     flags: MessageFlags.IsComponentsV2

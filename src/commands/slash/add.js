@@ -1,5 +1,6 @@
 const { MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../../../config');
+const { canUse } = require('../../core/Access');
 const { buildContainer, txt, sep, headerSection } = require('../../core/Toolkit');
 const { createLogger } = require('../../core/Toolkit');
 
@@ -15,7 +16,7 @@ module.exports = {
     async run(interaction) {
         const engine = require('../../core/BroadcastEngine');
 
-        if (!interaction.member?.roles?.cache?.has(config.server.bcRoleId)) return;
+        if (!canUse(interaction.member)) return;
 
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 

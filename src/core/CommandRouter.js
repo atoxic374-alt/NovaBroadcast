@@ -11,6 +11,7 @@ const {
 } = require('discord.js');
 
 const config = require('../../config');
+const { canUse } = require('./Access');
 const engine = require('./BroadcastEngine');
 const { createLogger, buildContainer, txt, sep, headerSection } = require('./Toolkit');
 
@@ -105,7 +106,7 @@ class CommandRouter {
             const userId = interaction.user.id;
 
             if (id === 'cp_bc') {
-                if (!interaction.member?.roles?.cache?.has(config.server.bcRoleId)) return;
+                if (!canUse(interaction.member)) return;
 
                 return interaction.showModal(
                     new ModalBuilder()
@@ -126,8 +127,7 @@ class CommandRouter {
             }
 
             if (id === 'cp_Nova_Realm') {
-                if (interaction.guild?.id !== config.server.guildId) return;
-                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
                 await interaction.guild.members.fetch();
                 const members = interaction.guild.members.cache.filter(m => !m.user.bot);

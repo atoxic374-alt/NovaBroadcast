@@ -1,5 +1,6 @@
 const { MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../../../config');
+const { canUse } = require('../../core/Access');
 const { buildContainer, txt, sep, headerSection } = require('../../core/Toolkit');
 const { createLogger } = require('../../core/Toolkit');
 
@@ -14,7 +15,7 @@ module.exports = {
     async run(message) {
         const engine = require('../../core/BroadcastEngine');
 
-        if (!message.member?.roles?.cache?.has(config.server.bcRoleId)) return;
+        if (!canUse(message.member)) return;
 
         const clients = engine.clients;
 
