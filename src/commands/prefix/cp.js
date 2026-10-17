@@ -3,7 +3,7 @@ const config = require('../../../config');
 const { buildContainer, txt, sep } = require('../../core/Toolkit');
 
 module.exports = {
-    name: 'cp',
+    name: 'bc',
     async run(message) {
         const guild = message.guild;
         const e = config.emojis;

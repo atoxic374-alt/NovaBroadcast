@@ -3,8 +3,8 @@ const config = require('../../../config');
 const { buildContainer, txt, sep } = require('../../core/Toolkit');
 
 module.exports = {
-    name: 'cp',
-    data: { name: 'cp', description: 'Broadcast hub — all commands in one panel' },
+    name: 'bc',
+    data: { name: 'bc', description: 'Broadcast hub — all commands in one panel' },
     async run(interaction) {
         const guild = interaction.guild;
         const e = config.emojis;

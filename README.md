@@ -119,7 +119,7 @@ npm start
 
 ## Usage
 
-### `/cp` or `+cp`
+### `/bc` or `%bc`
 Opens the main control panel with all commands as buttons.
 
 ### `/help` or `+help`
@@ -133,7 +133,7 @@ Remove your bot in one click.
 
 ### How to broadcast
 
-1. Use `/cp` or `+cp` to open the control panel
+1. Use `/bc` or `%bc` to open the control panel
 2. Click **Broadcast**
 3. Type your message in the modal
 4. Choose message type: **Normal** or **Embed**
@@ -148,8 +148,8 @@ Remove your bot in one click.
 novabroadcast/
 ├── src/
 │   ├── commands/
-│   │   ├── prefix/       # +cp, +help
-│   │   └── slash/        # /cp, /help
+│   │   ├── prefix/       # %bc, %help
+│   │   └── slash/        # /bc, /help
 │   ├── core/
 │   │   ├── BroadcastEngine.js   # DM sending logic
 │   │   ├── CommandRouter.js     # Button/modal handler
