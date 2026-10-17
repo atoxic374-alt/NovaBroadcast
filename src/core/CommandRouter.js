@@ -56,10 +56,8 @@ class CommandRouter {
     }
 
     buildTypePicker(text, guild) {
-        const preview = text.length > MAX_PREV_LEN ? text.slice(0, MAX_PREV_LEN) + '…' : text;
         return buildContainer(config.colors.main,
             headerSection(guild, `**## Choose Message Type**`, '- اختر طريقة إرسال الرسالة. يمكنك إرسال نص عادي أو Embed منسق بعنوان ولون صورة البوت.'),
-            txt(`**Message Preview**\n\`\`\`${preview}\`\`\``),
             sep(),
             new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('bc_type_normal').setLabel('Normal').setStyle(ButtonStyle.Secondary),
@@ -70,11 +68,8 @@ class CommandRouter {
     }
 
     buildBcPanel(text, msgType = 'normal', guild) {
-        const preview = text.length > MAX_PREV_LEN ? text.slice(0, MAX_PREV_LEN) + '…' : text;
-        const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
         return buildContainer(config.colors.main,
-            headerSection(guild, `**## Broadcast Control**`, '- اختر الأعضاء الذين سيستلمون الإرسال: جميع الأعضاء أو المتصلون أو غير المتصلين. راجع المعاينة قبل التأكيد.'),
-            txt(`**Message Preview**\n\`\`\`${preview}\`\`\`\n**معلومات:** ${text.length} / ${MAX_BC_LEN} chars · Type: **${typeLabel}**`),
+            headerSection(guild, `**## Broadcast Control**`, '- اختر الفئة المستهدفة.'),
             sep(),
             new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('target_all').setLabel('All Members').setStyle(ButtonStyle.Secondary),
@@ -87,11 +82,8 @@ class CommandRouter {
     }
 
     buildConfirmPanel(text, targetLabel, count, msgType = 'normal', guild) {
-        const preview = text.length > MAX_PREV_LEN ? text.slice(0, MAX_PREV_LEN) + '…' : text;
-        const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
         return buildContainer(config.colors.main,
-            headerSection(guild, `**## Broadcast Control**`, '- راجع المعاينة والجمهور وعدد الأعضاء ونوع الرسالة قبل التشغيل. بعد الضغط على التأكيد يبدأ الإرسال فورًا.'),
-            txt(`**Message Preview**\n\`\`\`${preview}\`\`\`\n**الهدف:** ${targetLabel} — **${count}** أعضاء · Type: **${typeLabel}**`),
+            headerSection(guild, `**## Broadcast Control**`, '- اضغط Confirm لبدء الإرسال.'),
             sep(),
             new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('bc_confirm').setLabel('Confirm').setStyle(ButtonStyle.Success),
@@ -156,9 +148,7 @@ class CommandRouter {
             if (id === 'bc_cancel') {
                 this.clearBroadcastSession(userId);
                 return interaction.update({
-                    components: [buildContainer(config.colors.canceled,
-                        headerSection(interaction.guild, `**## Broadcast Canceled**`, '- The broadcast has been canceled successfully. Your session has been cleared and no messages were sent. You can start a new broadcast at any time by returning to the control panel and clicking the Broadcast button again.')
-                    )],
+                    components: [buildContainer(config.colors.canceled, txt('Done canceled'))],
                     flags: MessageFlags.IsComponentsV2
                 });
             }
@@ -196,7 +186,7 @@ class CommandRouter {
                                     .setCustomId('embed_footer')
                                     .setLabel('نص التذييل (اختياري)')
                                     .setStyle(TextInputStyle.Short)
-                                    .setPlaceholder('e.g. Nova Realm™ Broadcast • 2026')
+                                    .setPlaceholder('اكتب نص التذييل')
                                     .setMaxLength(256)
                                     .setRequired(false)
                             ),
