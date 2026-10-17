@@ -162,7 +162,9 @@ class BroadcastEngine {
     }
 
     async startBroadcast({ interaction, members, message, msgType = 'normal', embedTitle = null, embedColor = null, embedFooter = null, embedLink = null, embedImage = null }) {
-        const totalMembers = members.size;
+        const queue = [...members.values()].filter(member => member?.id && !member.user?.bot);
+        const uniqueMembers = [...new Map(queue.map(member => [member.id, member])).values()];
+        const totalMembers = uniqueMembers.length;
         const valid        = this.clients.filter(c => c?.user?.id);
         const clientCount  = valid.length;
 
@@ -198,9 +200,17 @@ class BroadcastEngine {
             sep()
         ));
 
-        const queue = [...members.values()];
         let cursor = 0;
-        const takeNext = () => queue[cursor++];
+        const claimed = new Set();
+        const takeNext = () => {
+            while (cursor < uniqueMembers.length) {
+                const member = uniqueMembers[cursor++];
+                if (claimed.has(member.id)) continue;
+                claimed.add(member.id);
+                return member;
+            }
+            return null;
+        };
 
         await Promise.all(valid.map(client =>
             this._processQueue({ client, takeNext, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage })
