@@ -54,14 +54,14 @@ class BroadcastEngine {
         if (n > 0) this.clientLoadMap.set(client.user.id, n - 1);
     }
 
-    _distribute(أعضاء, count) {
+    _distribute(members, count) {
         const chunks = Array.from({ length: count }, () => []);
-        أعضاء.forEach((m, i) => chunks[i % count].push(m));
-        logger.info(`Distributed ${أعضاء.length} أعضاء → [${chunks.map(c => c.length).join(', ')}]`);
+        members.forEach((m, i) => chunks[i % count].push(m));
+        logger.info(`Distributed ${members.length} أعضاء → [${chunks.map(c => c.length).join(', ')}]`);
         return chunks;
     }
 
-    _buildPayload(message, msgType, embedTitle, embedColor, embedFooter, guild, embedLink = null) {
+    _buildPayload(message, msgType, embedTitle, embedColor, embedFooter, guild, embedLink = null, embedImage = null) {
         if (msgType === 'embed') {
             const color = parseInt(config.colors.main.replace('#', ''), 16);
             const embed = new EmbedBuilder()
@@ -73,6 +73,8 @@ class BroadcastEngine {
             if (guild?.iconURL()) {
                 embed.setThumbnail(guild.iconURL({ dynamic: true, size: 512 }));
             }
+
+            if (embedImage) embed.setImage(embedImage);
 
             if (embedFooter) {
                 embed.setFooter({ text: embedFooter });
@@ -96,8 +98,8 @@ class BroadcastEngine {
         return { content: message };
     }
 
-    async startBroadcast({ interaction, أعضاء, message, msgType = 'normal', embedTitle = null, embedColor = null, embedFooter = null, embedLink = null }) {
-        const totalMembers = أعضاء.size;
+    async startBroadcast({ interaction, members, message, msgType = 'normal', embedTitle = null, embedColor = null, embedFooter = null, embedLink = null, embedImage = null }) {
+        const totalMembers = members.size;
         const valid        = this.clients.filter(c => c?.user?.id);
         const clientCount  = valid.length;
 
@@ -133,17 +135,17 @@ class BroadcastEngine {
             sep()
         ));
 
-        const chunks = this._distribute([...أعضاء.values()], clientCount);
+        const chunks = this._distribute([...members.values()], clientCount);
 
         await Promise.all(chunks.map((chunk, i) =>
-            this._processChunk({ client: valid[i % clientCount], chunk, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink })
+            this._processChunk({ client: valid[i % clientCount], chunk, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage })
         ));
 
         logger.info(`Broadcast done —  ${results.successCount}   ${results.failureCount}`);
         return this._finalize({ interaction, results, message, msgType, embedFooter, embedLink });
     }
 
-    async _processChunk({ client, chunk, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink }) {
+    async _processChunk({ client, chunk, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage }) {
         if (!client?.user) {
             chunk.forEach(() => { results.failureCount++; results.processedCount++; });
             return;
@@ -162,7 +164,7 @@ class BroadcastEngine {
                 if (!user) throw Object.assign(new Error('Cannot fetch user'), { code: -1 });
 
                 const guild   = member.guild;
-                const payload = this._buildPayload(message, msgType, embedTitle, embedColor, embedFooter, guild, embedLink);
+                const payload = this._buildPayload(message, msgType, embedTitle, embedColor, embedFooter, guild, embedLink, embedImage);
                 await user.send(payload);
                 results.successCount++;
             } catch (e) {

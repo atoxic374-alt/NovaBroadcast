@@ -129,15 +129,15 @@ class CommandRouter {
             if (id === 'cp_Nova_Realm') {
                                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-                await interaction.guild.أعضاء.fetch();
-                const أعضاء = interaction.guild.أعضاء.cache.filter(m => !m.user.bot);
+                await interaction.guild.members.fetch();
+                const members = interaction.guild.members.cache.filter(m => !m.user.bot);
                 const bots    = engine.clients.length;
                 const speed   = engine.requestsPerSecond * bots;
-                const eta     = Math.ceil(أعضاء.size / speed);
+                const eta     = Math.ceil(members.size / speed);
 
                  return interaction.editReply({
                     components: [buildContainer(config.colors.main,
-                        headerSection(interaction.guild, `**## System Status**`, `**Members Found:** ${أعضاء.size}\n**Active Bots:** ${bots}\n**Broadcast Speed:** ~${speed} أعضاء/sec\n**Estimated Time:** ~${eta} seconds`),
+                        headerSection(interaction.guild, `**## System Status**`, `**Members Found:** ${members.size}\n**Active Bots:** ${bots}\n**Broadcast Speed:** ~${speed} أعضاء/sec\n**Estimated Time:** ~${eta} seconds`),
                         sep()
                     )],
                     flags: MessageFlags.IsComponentsV2
@@ -197,6 +197,15 @@ class CommandRouter {
                                     .setLabel('رابط الزر (اختياري)')
                                     .setStyle(TextInputStyle.Short)
                                     .setPlaceholder('e.g. https://discord.gg/z77Akyq2EE')
+                                    .setMaxLength(512)
+                                    .setRequired(false)
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('embed_image')
+                                    .setLabel('رابط الصورة (اختياري)')
+                                    .setStyle(TextInputStyle.Short)
+                                    .setPlaceholder('https://example.com/image.png')
                                     .setMaxLength(512)
                                     .setRequired(false)
                             )
@@ -263,10 +272,14 @@ class CommandRouter {
                 const embedTitle  = interaction.fields.getTextInputValue('embed_title').trim();
                 const embedFooter = interaction.fields.getTextInputValue('embed_footer').trim() || null;
                 const embedLink   = interaction.fields.getTextInputValue('embed_link').trim() || null;
+                const embedImage  = interaction.fields.getTextInputValue('embed_image').trim() || null;
                 const embedColor  = config.colors.main;
 
                 if (embedLink && !/^https?:\/\/.+/.test(embedLink)) {
                     return interaction.reply({ content: ' الرابط غير صالح. يجب أن يبدأ بـ `https://` أو `http://`.', flags: MessageFlags.Ephemeral });
+                }
+                if (embedImage && !/^https?:\/\/.+\.(?:png|jpe?g|gif|webp)(?:\?.*)?$/i.test(embedImage)) {
+                    return interaction.reply({ content: ' رابط الصورة غير صالح. استخدم رابط صورة مباشر ينتهي بـ png أو jpg أو gif أو webp.', flags: MessageFlags.Ephemeral });
                 }
 
                 const broadcastText = this.getBroadcastText(userId);
@@ -280,7 +293,8 @@ class CommandRouter {
                     embedTitle,
                     embedColor,
                     embedFooter,
-                    embedLink
+                    embedLink,
+                    embedImage
                 });
 
                 await interaction.deferUpdate();
@@ -306,12 +320,12 @@ class CommandRouter {
 
                 let targetMember = null;
                 if (/^\d{17,20}$/.test(cleanId)) {
-                    targetMember = await interaction.guild.أعضاء.fetch(cleanId).catch(() => null);
+                    targetMember = await interaction.guild.members.fetch(cleanId).catch(() => null);
                 }
 
                 if (!targetMember) {
                     try {
-                        const searchResults = await interaction.guild.أعضاء.search({ query: input, limit: 5 });
+                        const searchResults = await interaction.guild.members.search({ query: input, limit: 5 });
                         if (searchResults?.size > 0) {
                             targetMember = searchResults.find(m =>
                                 m.user.username.toLowerCase() === input.toLowerCase() ||
@@ -325,7 +339,7 @@ class CommandRouter {
                 }
 
                 if (!targetMember) {
-                    targetMember = interaction.guild.أعضاء.cache.find(m =>
+                    targetMember = interaction.guild.members.cache.find(m =>
                         m.id === cleanId ||
                         m.user.username.toLowerCase() === input.toLowerCase() ||
                         m.user.tag.toLowerCase() === input.toLowerCase() ||
@@ -435,8 +449,8 @@ class CommandRouter {
     }
 
     async _handleTargetSelect(interaction, target, broadcastText) {
-        await interaction.guild.أعضاء.fetch({ withPresences: true });
-        const all = interaction.guild.أعضاء.cache.filter(m => !m.user.bot);
+        await interaction.guild.members.fetch({ withPresences: true });
+        const all = interaction.guild.members.cache.filter(m => !m.user.bot);
 
         let targetMembers, targetLabel;
         switch (target) {
@@ -498,13 +512,14 @@ class CommandRouter {
 
         await engine.startBroadcast({
             interaction,
-            أعضاء: savedMembers,
+            members: savedMembers,
             message: savedText,
             msgType: savedType,
             embedTitle,
             embedColor,
             embedFooter,
-            embedLink
+            embedLink,
+            embedImage: session.embedImage || null
         });
     }
 }
