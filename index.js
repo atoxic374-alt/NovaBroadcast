@@ -17,12 +17,10 @@ const collectTokens = () => {
 };
 
 config.bot.tokens = collectTokens();
-if (process.env.GUILD_ID) config.server.guildId = process.env.GUILD_ID;
-if (process.env.BC_ROLE_ID) config.server.bcRoleId = process.env.BC_ROLE_ID;
-if (process.env.REPORT_CHANNEL_ID) config.server.reportChannelId = process.env.REPORT_CHANNEL_ID;
 
 const { createLogger } = require('./src/core/Toolkit');
 const router = require('./src/core/CommandRouter');
+const { canUse } = require('./src/core/Access');
 
 const logger = createLogger('Main');
 const PREFIX = config.prefix;
@@ -107,10 +105,7 @@ const registerSlash = async (client) => {
             .setToken(client.token);
 
         await rest.put(
-            Routes.applicationGuildCommands(
-                client.user.id,
-                config.server.guildId
-            ),
+            Routes.applicationCommands(client.user.id),
             { body }
         );
 
@@ -180,33 +175,14 @@ const initClients = async () => {
 };
 
 const hasBcPermission = async (guild, member, userId) => {
-    if (!guild || guild.id !== config.server.guildId) {
-        return false;
-    }
+    if (!guild) return false;
 
     let targetMember = member;
-
     if (!targetMember && userId) {
-        targetMember = await guild.members
-            .fetch(userId)
-            .catch(() => null);
+        targetMember = await guild.members.fetch(userId).catch(() => null);
     }
 
-    if (!targetMember) return false;
-
-    if (targetMember.roles?.cache) {
-        return targetMember.roles.cache.has(
-            config.server.bcRoleId
-        );
-    }
-
-    if (Array.isArray(targetMember.roles)) {
-        return targetMember.roles.includes(
-            config.server.bcRoleId
-        );
-    }
-
-    return false;
+    return canUse(targetMember);
 };
 
 const attachListeners = (client) => {

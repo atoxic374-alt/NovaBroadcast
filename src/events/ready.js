@@ -1,7 +1,7 @@
 const { ActivityType } = require('discord.js');
 
 module.exports = {
-    name: 'ready',
+    name: 'clientReady',
     once: true,
 
     async execute(client, config, logger) {

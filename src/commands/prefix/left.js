@@ -1,5 +1,6 @@
 const { MessageFlags } = require('discord.js');
 const config = require('../../../config');
+const { canUse } = require('../../core/Access');
 const { buildContainer, txt, sep, headerSection, createLogger } = require('../../core/Toolkit');
 
 const logger = createLogger('LeftCommand');
@@ -10,7 +11,7 @@ module.exports = {
     async run(message) {
         const engine = require('../../core/BroadcastEngine');
 
-        if (!message.member?.roles?.cache?.has(config.server.bcRoleId)) return;
+        if (!canUse(message.member)) return;
 
         const clients = engine.clients;
         const guildId = message.guild.id;
