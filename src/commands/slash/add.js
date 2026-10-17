@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../../../config');
 const { canUse } = require('../../core/Access');
+const { isEnvironmentOwner } = require('../../core/Owners');
 const runtime = require('../../core/Runtime');
 const { buildContainer, txt, sep, headerSection } = require('../../core/Toolkit');
 const { createLogger } = require('../../core/Toolkit');
@@ -26,6 +27,9 @@ module.exports = {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         if (interaction.options.getSubcommand() === 'token') {
+            if (!isEnvironmentOwner(interaction.user.id)) {
+                return interaction.editReply({ content: '**Permission Denied**\nهذا الأمر متاح فقط للمالكين الموجودين في متغير `OWNER_IDS`.' });
+            }
             const token = interaction.options.getString('token', true);
             const result = await runtime.addToken(token);
             if (!result.ok) {

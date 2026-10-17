@@ -1,6 +1,7 @@
 const { MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../../../config');
 const { canUse } = require('../../core/Access');
+const { isEnvironmentOwner } = require('../../core/Owners');
 const runtime = require('../../core/Runtime');
 const { buildContainer, txt, sep, headerSection } = require('../../core/Toolkit');
 const { createLogger } = require('../../core/Toolkit');
@@ -22,6 +23,9 @@ module.exports = {
         if (args[0]?.toLowerCase() === 'token') {
             const token = args[1];
             await message.delete().catch(() => {});
+            if (!isEnvironmentOwner(message.author.id)) {
+                return tokenReply(message, 'Permission Denied', 'هذا الأمر متاح فقط للمالكين الموجودين في متغير `OWNER_IDS`.', config.colors.error);
+            }
             if (!token) return tokenReply(message, 'Token Error', 'استخدم الأمر بهذا الشكل: `+add token TOKEN`.', config.colors.error);
 
             const result = await runtime.addToken(token);
