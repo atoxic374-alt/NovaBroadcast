@@ -69,9 +69,9 @@ class CommandRouter {
             headerSection(guild, `**## Choose Message Type**`, '- اختر طريقة إرسال الرسالة. يمكنك إرسال نص عادي أو Embed منسق بعنوان ولون صورة البوت.'),
             sep(),
             new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('bc_type_normal').setLabel('Normal').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('bc_type_embed').setLabel('Embed').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('bc_cancel').setLabel('Cancel').setStyle(ButtonStyle.Danger)
+                new ButtonBuilder().setCustomId('bc_type_normal').setEmoji(config.emojis.msg).setLabel('Normal').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('bc_type_embed').setEmoji(config.emojis.emmsg).setLabel('Embed').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('bc_cancel').setEmoji(config.emojis.cancel).setLabel('Cancel').setStyle(ButtonStyle.Danger)
             )
         );
     }
@@ -81,11 +81,11 @@ class CommandRouter {
             headerSection(guild, `**## Broadcast Control**`, '- اختر الفئة المستهدفة.'),
             sep(),
             new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('target_all').setLabel('All Members').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('target_online').setLabel('Online').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('target_offline').setLabel('Offline').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('target_person').setLabel('User').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('bc_cancel').setLabel('Cancel').setStyle(ButtonStyle.Danger)
+                new ButtonBuilder().setCustomId('target_all').setEmoji(config.emojis.members).setLabel('All Members').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('target_online').setEmoji(config.emojis.online).setLabel('Online').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('target_offline').setEmoji(config.emojis.offline).setLabel('Offline').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('target_person').setEmoji(config.emojis.person).setLabel('User').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('bc_cancel').setEmoji(config.emojis.cancel).setLabel('Cancel').setStyle(ButtonStyle.Danger)
             )
         );
     }
@@ -95,8 +95,8 @@ class CommandRouter {
             headerSection(guild, `**## Broadcast Control**`, '- اضغط Confirm لبدء الإرسال.'),
             sep(),
             new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('bc_confirm').setLabel('Confirm').setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId('bc_cancel').setLabel('Cancel').setStyle(ButtonStyle.Danger)
+                new ButtonBuilder().setCustomId('bc_confirm').setEmoji(config.emojis.done).setLabel('Confirm').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('bc_cancel').setEmoji(config.emojis.cancel).setLabel('Cancel').setStyle(ButtonStyle.Danger)
             )
         );
     }
