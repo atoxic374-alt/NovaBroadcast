@@ -14,7 +14,7 @@ module.exports = {
 
         const header = new SectionBuilder()
             .addTextDisplayComponents(
-                txt(`**## ${e.dot} Help**`),
+                txt('**## Help**'),
                 txt('- مرحبًا بك في لوحة المساعدة. ستجد هنا الأوامر المتاحة وإمكانات النظام وطريقة بدء أول حملة إرسال.')
             );
         if (guild?.iconURL()) {
@@ -26,13 +26,13 @@ module.exports = {
         const container = buildContainer(config.colors.main,
             header,
             txt(
-                `**${e.less} Control Panel**\n- Use \`${p}cp\` or \`/cp\` لفتح لوحة التحكم الرئيسية، ومن خلالها يمكنك بدء الإرسال ومراجعة حالة النظام بضغطة واحدة.\n` +
-                `**${e.right} Broadcast**\n- أرسل رسائل مباشرة إلى جميع أعضاء الخادم أو صفِّهم حسب الحالة. يمكنك الاختيار بين رسالة عادية أو Embed.\n` +
-                `**${e.right} Status**\n- اعرض الإحصائيات الفورية، مثل عدد الأعضاء والبوتات النشطة والوقت المتوقع وسرعة الإرسال.\n` +
-                `**${e.less} Bot Management**\n` +
-                `**${e.right} Add Bots** — \`${p}add\` or \`/add\`\n- أنشئ روابط دعوة لجميع البوتات الإضافية لإضافتها بسرعة إلى خادم جديد.\n` +
-                `**${e.right} Remove Bots** — \`${p}left\` or \`/left\`\n- اجعل البوتات الإضافية تغادر الخادم الحالي، بينما يبقى البوت الرئيسي.\n` +
-                `**${e.less} System Info**\n- ${bots} active bots | ~${speed} أعضاء/sec | Engine: discord.js v14.`
+                `**Control Panel**\n- Use \`${p}cp\` or \`/cp\` لفتح لوحة التحكم الرئيسية، ومن خلالها يمكنك بدء الإرسال ومراجعة حالة النظام بضغطة واحدة.\n` +
+                `**Broadcast**\n- أرسل رسائل مباشرة إلى جميع أعضاء الخادم أو صفِّهم حسب الحالة. يمكنك الاختيار بين رسالة عادية أو Embed.\n` +
+                `**Status**\n- اعرض الإحصائيات الفورية، مثل عدد الأعضاء والبوتات النشطة والوقت المتوقع وسرعة الإرسال.\n` +
+                `**Bot Management**\n` +
+                `**Add Bots** — \`${p}add\` or \`/add\`\n- أنشئ روابط دعوة لجميع البوتات الإضافية لإضافتها بسرعة إلى خادم جديد.\n` +
+                `**Remove Bots** — \`${p}left\` or \`/left\`\n- اجعل البوتات الإضافية تغادر الخادم الحالي، بينما يبقى البوت الرئيسي.\n` +
+                `**System Info**\n- ${bots} active bots | ~${speed} أعضاء/sec | Engine: discord.js v14.`
             ),
             sep()
         );
