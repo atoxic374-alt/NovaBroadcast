@@ -177,6 +177,7 @@ class BroadcastEngine {
             failedMembers:  [],
             startTime:      Date.now(),
             lastUIUpdate:   Date.now(),
+            lastUIProcessed: 0,
             processedCount: 0
         };
 
@@ -185,15 +186,17 @@ class BroadcastEngine {
         const etaMin = Math.floor(etaMs / 60000);
         const etaSec = Math.floor((etaMs % 60000) / 1000);
         const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
+        results.msgType = typeLabel;
 
         await this._updateUI(interaction, buildContainer(config.colors.main,
             headerSection(interaction.guild, `**## Processing Broadcast**`, `- Starting broadcast to **${totalMembers}** أعضاء. Please wait while the system delivers your message.`),
             sep(false),
-            txt(`**Progress:** ░░░░░░░░░░ 0%`),
+            txt(`**[${createProgressBar(0, 20)}] 0%**`),
             txt([
-                `**الهدف:** ${totalMembers} أعضاء`,
-                `**ETA:** ${etaMin}m ${etaSec}s`,
-                `**Speed:** ~${rps}/sec`,
+                `✓ **Accepted:** 0   ✗ **Failed:** 0`,
+                `**Processed:** 0 / ${totalMembers} أعضاء`,
+                `**Time Left:** ${etaMin}m ${etaSec}s`,
+                `**Speed:** ~${rps.toFixed(1)}/sec`,
                 `**Bots:** ${clientCount}`,
                 `**Type:** ${typeLabel}`
             ].join('\n')),
@@ -253,8 +256,9 @@ class BroadcastEngine {
 
                 const pct = results.totalMembers ? Math.floor(results.processedCount / results.totalMembers * 100) : 100;
                 const now = Date.now();
-                if (now - results.lastUIUpdate > 3000 || results.processedCount === 1) {
+                if (results.processedCount - results.lastUIProcessed >= 10 || results.processedCount === results.totalMembers) {
                     results.lastUIUpdate = now;
+                    results.lastUIProcessed = results.processedCount;
                     await this._progressUI(interaction, results, pct);
                 }
 
@@ -271,19 +275,19 @@ class BroadcastEngine {
         const etaMin    = Math.floor(etaMs / 60000);
         const etaSec    = Math.floor((etaMs % 60000) / 1000);
         const curSpeed  = processed > 0 ? Math.round(processed / (elapsed / 1000)) : 0;
-        const bar       = createProgressBar(pct);
+        const bar       = createProgressBar(pct, 20);
 
         await this._updateUI(interaction, buildContainer(config.colors.main,
             headerSection(interaction.guild, `**## Processing Broadcast**`, `- جاري تنفيذ الإرسال. يتم تحديث الإحصائيات تلقائيًا.`),
             sep(false),
-            txt(`**${bar} ${pct}%**`),
+            txt(`**[${bar}] ${pct}%**`),
             txt([
-                `**Progress:** ${processed} / ${results.totalMembers}`,
-                `**Success:** ${results.successCount}   **Failed:** ${results.failureCount}`,
+                `✓ **Accepted:** ${results.successCount}   ✗ **Failed:** ${results.failureCount}`,
+                `**Processed:** ${processed} / ${results.totalMembers}   **Remaining:** ${remaining}`,
                 `**Time Left:** ${etaMin}m ${etaSec}s`,
                 `**Elapsed:** ${Math.floor(elapsed / 60000)}m ${Math.floor((elapsed % 60000) / 1000)}s`,
-                `**Speed:** ~${curSpeed}/sec`,
-                `**Bots:** ${this.clients.length}`
+                `**Speed:** ~${curSpeed}/sec   **Bots:** ${this.clients.length}`,
+                `**Type:** ${results.msgType || 'Broadcast'}`
             ].join('\n')),
             sep()
         ));
@@ -293,7 +297,7 @@ class BroadcastEngine {
         const elapsed   = Date.now() - results.startTime;
         const avgSpeed  = elapsed > 0 ? Math.round(results.totalMembers / (elapsed / 1000)) : 0;
         const pct       = results.totalMembers ? Math.floor(results.successCount / results.totalMembers * 100) : 0;
-        const bar       = createProgressBar(pct);
+        const bar       = createProgressBar(pct, 20);
         const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
         const footerLabel = embedFooter ? `Footer: ${embedFooter}` : '';
         const guild     = interaction.guild;
@@ -313,10 +317,10 @@ class BroadcastEngine {
             headerSection(guild, '**## Broadcast Completed**', '- اكتمل الإرسال بنجاح. تم إرسال التقرير التفصيلي إلى قناة التقارير.'),
             sep(false),
             txt([
-                `**${bar} ${pct}%**`,
-                `**Total:** ${results.totalMembers}`,
-                `**Success:** ${results.successCount}`,
-                `**Failed:** ${results.failureCount}`,
+                `**[${bar}] ${pct}%**`,
+                `✓ **Accepted:** ${results.successCount}`,
+                `✗ **Failed:** ${results.failureCount}`,
+                `**Processed:** ${results.processedCount} / ${results.totalMembers}`,
                 `**Total Time:** ${Math.floor(elapsed / 60000)}m ${Math.floor((elapsed % 60000) / 1000)}s`,
                 `**Avg Speed:** ~${avgSpeed}/sec`,
                 `**Type:** ${typeLabel}`
