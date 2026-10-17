@@ -183,7 +183,7 @@ class BroadcastEngine {
                     await this._progressUI(interaction, results, pct);
                 }
 
-                await sleep(COOLDOWN_TIME / this.clients.length);
+                await sleep(COOLDOWN_TIME + MEMBER_COOLDOWN);
             }
         }
     }

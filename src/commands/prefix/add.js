@@ -5,7 +5,8 @@ const { createLogger } = require('../../core/Toolkit');
 
 const logger = createLogger('AddCommand');
 
-const ADMIN_PERMISSIONS = '8';
+// Secondary bots only send DMs, so they need no server permissions.
+const INVITE_PERMISSIONS = '0';
 
 module.exports = {
     name: 'add',
@@ -30,12 +31,12 @@ module.exports = {
         const secondaryClients = clients.slice(1);
 
         const lines = secondaryClients.map((client, i) => {
-            const link = `https://discord.com/oauth2/authorize?client_id=${client.user.id}&scope=bot&permissions=${ADMIN_PERMISSIONS}`;
+            const link = `https://discord.com/oauth2/authorize?client_id=${client.user.id}&scope=bot&permissions=${INVITE_PERMISSIONS}`;
             return `${config.emojis.dot} **Bot ${i + 2}:** [${client.user.tag}](${link})`;
         });
 
         const buttons = secondaryClients.map((client, i) => {
-            const link = `https://discord.com/oauth2/authorize?client_id=${client.user.id}&scope=bot&permissions=${ADMIN_PERMISSIONS}`;
+            const link = `https://discord.com/oauth2/authorize?client_id=${client.user.id}&scope=bot&permissions=${INVITE_PERMISSIONS}`;
             return new ButtonBuilder()
                 .setLabel(`Add Bot ${i + 2}`)
                 .setURL(link)
@@ -50,7 +51,7 @@ module.exports = {
         const container = buildContainer(config.colors.main,
             headerSection(message.guild,
                 `**## ${config.emojis.dot} Bot Invite Links**`,
-                `- Click the buttons below to add the secondary bots to your server with **Administrator** permission. Make sure to add them to the correct server.`
+                `- Click the buttons below to add the secondary bots to your server. No special permissions are required. Make sure to add them to the correct server.`
             ),
             sep(false),
             txt(`**${config.emojis.right} Secondary Bots (${secondaryClients.length}):**\n${lines.join('\n')}`),

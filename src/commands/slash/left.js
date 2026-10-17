@@ -20,7 +20,8 @@ module.exports = {
 
         const results = [];
 
-        for (const client of clients) {
+        // Skip the main bot (clients[0]) so the control panel keeps working.
+        for (const client of clients.slice(1)) {
             try {
                 const guild = client.guilds.cache.get(guildId)
                     ?? await client.guilds.fetch(guildId).catch(() => null);
@@ -45,7 +46,7 @@ module.exports = {
             components: [buildContainer(config.colors.error,
                 headerSection(interaction.guild,
                     `**## ${config.emojis.dot} Bots Left Server**`,
-                    `- All bots have been instructed to leave the server.`
+                    `- All secondary bots have been instructed to leave the server. The main bot stays.`
                 ),
                 sep(false),
                 txt(`**${config.emojis.right} Results:**\n${lines}`),

@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials, REST, Routes, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, REST, Routes, Collection, Events } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config.json');
@@ -80,10 +80,13 @@ const loadEvents = (client) => {
             });
         };
 
+        // 'ready' was renamed to 'clientReady' in newer discord.js v14 (and is the only name in v15)
+        const eventName = event.name === 'ready' ? (Events.ClientReady || 'ready') : event.name;
+
         if (event.once) {
-            client.once(event.name, runEvent);
+            client.once(eventName, runEvent);
         } else {
-            client.on(event.name, runEvent);
+            client.on(eventName, runEvent);
         }
 
         logger.info(`Loaded event: ${event.name}`);
