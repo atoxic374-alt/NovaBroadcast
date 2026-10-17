@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, Partials, REST, Routes, Collection, Events } 
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
+const runtime = require('./src/core/Runtime');
 
 // Tokens are read from environment variables first (Railway Variables), then config.json.
 // Supported: BOT_TOKENS (comma / newline separated), BOT_TOKEN, BOT_TOKEN_1 ... BOT_TOKEN_10
@@ -12,6 +13,7 @@ const collectTokens = () => {
     for (let i = 1; i <= 10; i++) {
         if (process.env[`BOT_TOKEN_${i}`]) list.push(process.env[`BOT_TOKEN_${i}`]);
     }
+    list.push(...runtime.savedTokens());
     list.push(...(config.bot.tokens || []));
     return [...new Set(list.map(t => (t || '').trim()).filter(t => t && !t.startsWith('TOKEN_')))];
 };
@@ -129,19 +131,7 @@ const initClients = async () => {
             continue;
         }
 
-        const client = new Client({
-            intents: [
-                GatewayIntentBits.Guilds,
-                GatewayIntentBits.GuildMessages,
-                GatewayIntentBits.GuildMembers,
-                GatewayIntentBits.GuildPresences,
-                GatewayIntentBits.MessageContent,
-                GatewayIntentBits.DirectMessages
-            ],
-            partials: [
-                Partials.Channel
-            ]
-        });
+        const client = createClient();
         loadEvents(client);
         attachListeners(client);
 
@@ -169,6 +159,7 @@ const initClients = async () => {
 
     await engine.initialize(clients);
     await registerSlash(clients[0]);
+    runtime.setAddTokenHandler(addRuntimeToken);
 
     logger.info(`${clients.length} client(s) ready`);
     return true;
@@ -183,6 +174,45 @@ const hasBcPermission = async (guild, member, userId) => {
     }
 
     return canUse(targetMember);
+};
+
+const createClient = () => new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildPresences,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages
+    ],
+    partials: [Partials.Channel]
+});
+
+const addRuntimeToken = async (token) => {
+    const normalized = String(token || '').trim();
+    if (!normalized || normalized.startsWith('TOKEN_')) {
+        return { ok: false, reason: 'التوكن غير صالح.' };
+    }
+    if (config.bot.tokens.includes(normalized)) {
+        return { ok: false, reason: 'هذا التوكن مضاف مسبقًا.' };
+    }
+
+    const client = createClient();
+    loadEvents(client);
+    attachListeners(client);
+    try {
+        await client.login(normalized);
+        clients.push(client);
+        config.bot.tokens.push(normalized);
+        const engine = require('./src/core/BroadcastEngine');
+        await engine.initialize(clients);
+        logger.info(`Runtime bot added: ${client.user.tag}`);
+        return { ok: true, tag: client.user.tag, count: clients.length };
+    } catch (error) {
+        client.destroy();
+        logger.warn(`Runtime token rejected: ${error.code || error.name || 'login_failed'}`);
+        return { ok: false, reason: 'تعذر تسجيل الدخول بهذا التوكن.' };
+    }
 };
 
 const attachListeners = (client) => {
