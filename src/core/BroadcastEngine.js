@@ -13,7 +13,7 @@ const MEMBER_COOLDOWN    = 100;
 const MIN_CLIENT_DELAY   = 900;
 const MAX_CLIENT_DELAY   = 6000;
 const PREFETCH_PER_CLIENT = 4;
-const START_CLIENT_CONCURRENCY = 2;
+const START_CLIENT_CONCURRENCY = 3;
 const REQUESTS_PER_SECOND = 1000 / (COOLDOWN_TIME + MEMBER_COOLDOWN);
 const { sleep, createLogger, createProgressBar, buildContainer, txt, sep, headerSection } = require('./Toolkit');
 
