@@ -5,9 +5,9 @@ const engine = require('./BroadcastEngine');
 // Runs fn on every loaded bot and returns one status line per bot.
 const forEachBot = async (fn) => {
     const lines = [];
-    for (const client of engine.clients) {
+    for (const [index, client] of engine.clients.entries()) {
         try {
-            await fn(client);
+            await fn(client, index);
             lines.push(`**${client.user.tag}** — `);
         } catch (e) {
             lines.push(`**${client.user.tag}** —  ${String(e.message).slice(0, 80)}`);

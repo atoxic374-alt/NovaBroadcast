@@ -1,4 +1,4 @@
-const { applyTo } = require('../core/BotState');
+const { applyName, applyTo } = require('../core/BotState');
 const { getBotAvatarColor } = require('../core/Toolkit');
 
 module.exports = {
@@ -14,6 +14,11 @@ module.exports = {
         }
         logger.info(`Avatar color applied: ${avatarColor}`);
 
+        try {
+            await applyName(client);
+        } catch (error) {
+            logger.warn(`Name apply failed for ${client.user.tag}: ${error.message}`);
+        }
         applyTo(client);
 
         if (client.presenceInterval) {
