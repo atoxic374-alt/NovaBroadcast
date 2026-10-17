@@ -121,8 +121,8 @@ const initClients = async () => {
     logger.info('Initializing clients...');
 
     if (!config.bot.tokens?.length) {
-        logger.error('No bot tokens found. Set BOT_TOKEN (main bot) and optionally BOT_TOKEN_2..BOT_TOKEN_5 in the environment variables.');
-        process.exit(1);
+        logger.warn('No bot tokens configured. Set BOT_TOKEN (main bot) and optionally BOT_TOKEN_2..BOT_TOKEN_5 in the environment variables. Running idle until tokens are added.');
+        return false;
     }
 
     for (const token of config.bot.tokens) {
@@ -173,6 +173,7 @@ const initClients = async () => {
     await registerSlash(clients[0]);
 
     logger.info(`${clients.length} client(s) ready`);
+    return true;
 };
 
 const hasBcPermission = async (guild, member, userId) => {
@@ -316,7 +317,13 @@ process.on('unhandledRejection', (r) => {
 
     try {
 
-        await initClients();
+        const started = await initClients();
+
+        if (!started) {
+            // No tokens: stay alive and idle instead of crashing / restart-looping.
+            setInterval(() => {}, 1 << 30);
+            return;
+        }
 
         const engine = require('./src/core/BroadcastEngine');
 
