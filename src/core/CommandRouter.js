@@ -21,6 +21,14 @@ const MAX_BC_LEN = 2000;
 const MAX_PREV_LEN = 200;
 const SESSION_TTL = 10 * 60 * 1000;
 
+const formatCooldown = (milliseconds) => {
+    const totalSeconds = Math.ceil(milliseconds / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours ? `${hours}h ` : ''}${minutes}m ${seconds}s`;
+};
+
 class CommandRouter {
     constructor() {
         this.broadcasts = new Map();
@@ -473,6 +481,17 @@ class CommandRouter {
             });
         }
 
+        const cooldown = engine.getBroadcastCooldown(interaction.guild?.id);
+        if (cooldown > 0) {
+            return interaction.update({
+                components: [buildContainer(config.colors.warning,
+                    headerSection(interaction.guild, '**## Broadcast Cooldown**'),
+                    txt(`لا يمكنك بدء برودكاست جديد الآن. الوقت المتبقي: **${formatCooldown(cooldown)}**.`)
+                )],
+                flags: MessageFlags.IsComponentsV2
+            });
+        }
+
         await interaction.update({
             components: [buildContainer(config.colors.warning,
                 headerSection(interaction.guild, `**## Processing Broadcast**`, `- Starting broadcast to **${session.targetMembers.size}** أعضاء...`)
@@ -489,7 +508,7 @@ class CommandRouter {
         const embedLink    = session.embedLink   || null;
         this.clearBroadcastSession(userId);
 
-        await engine.startBroadcast({
+        const result = await engine.startBroadcast({
             interaction,
             members: savedMembers,
             message: savedText,
@@ -500,6 +519,16 @@ class CommandRouter {
             embedLink,
             embedImage: session.embedImage || session.imageUrl || null
         });
+
+        if (result?.cooldown) {
+            await interaction.message?.edit({
+                components: [buildContainer(config.colors.warning,
+                    headerSection(interaction.guild, '**## Broadcast Cooldown**'),
+                    txt(`لا يمكنك بدء برودكاست جديد الآن. الوقت المتبقي: **${formatCooldown(result.remaining)}**.`)
+                )],
+                flags: MessageFlags.IsComponentsV2
+            }).catch(() => null);
+        }
     }
 }
 

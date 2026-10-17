@@ -8,6 +8,7 @@ const {
 
 const config = require('../../config');
 const checkpoint = require('./Checkpoint');
+const broadcastCooldown = require('./BroadcastCooldown');
 
 const COOLDOWN_TIME      = 900;
 const MEMBER_COOLDOWN    = 100;
@@ -221,7 +222,11 @@ class BroadcastEngine {
         return { content: message };
     }
 
-    async startBroadcast({ interaction, members, message, msgType = 'normal', embedTitle = null, embedColor = null, embedFooter = null, embedLink = null, embedImage = null }) {
+    getBroadcastCooldown(guildId) {
+        return broadcastCooldown.remaining(guildId);
+    }
+
+    async startBroadcast({ interaction, members, message, msgType = 'normal', embedTitle = null, embedColor = null, embedFooter = null, embedLink = null, embedImage = null, bypassCooldown = false }) {
         const queue = [...members.values()].filter(member => member?.id && !member.user?.bot);
         const uniqueMembers = [...new Map(queue.map(member => [member.id, member])).values()];
         const totalMembers = uniqueMembers.length;
@@ -230,9 +235,18 @@ class BroadcastEngine {
 
         if (!clientCount) { logger.error('No clients available'); return null; }
 
+        const guildId = interaction?.guild?.id || uniqueMembers[0]?.guild?.id;
+        if (!bypassCooldown && guildId) {
+            const claim = broadcastCooldown.claim(guildId);
+            if (!claim.claimed) {
+                logger.warn(`Broadcast blocked by cooldown for guild ${guildId}: ${claim.remaining}ms remaining`);
+                return { cooldown: true, remaining: claim.remaining };
+            }
+        }
+
         const checkpointState = {
             version: 1,
-            guildId: interaction?.guild?.id || uniqueMembers[0]?.guild?.id,
+            guildId,
             reportChannelId: interaction?.channelId || null,
             message,
             msgType,
@@ -437,7 +451,8 @@ class BroadcastEngine {
                 embedColor: saved.embedColor,
                 embedFooter: saved.embedFooter,
                 embedLink: saved.embedLink,
-                embedImage: saved.embedImage
+                embedImage: saved.embedImage,
+                bypassCooldown: true
             });
             return true;
         } catch (error) {
