@@ -8,9 +8,11 @@ const {
 
 const config = require('../../config');
 
-const COOLDOWN_TIME      = 1000;
+const COOLDOWN_TIME      = 900;
 const MEMBER_COOLDOWN    = 100;
-const REQUESTS_PER_SECOND = 1;
+const MIN_CLIENT_DELAY   = 900;
+const MAX_CLIENT_DELAY   = 6000;
+const REQUESTS_PER_SECOND = 1000 / (COOLDOWN_TIME + MEMBER_COOLDOWN);
 const { sleep, createLogger, createProgressBar, buildContainer, txt, sep, headerSection } = require('./Toolkit');
 
 const logger = createLogger('BroadcastEngine');
@@ -19,6 +21,7 @@ class BroadcastEngine {
     constructor() {
         this.clients       = [];
         this.clientLoadMap = new Map();
+        this.clientRateState = new Map();
         this.cooldownTime      = COOLDOWN_TIME;
         this.memberCooldown    = MEMBER_COOLDOWN;
         this.requestsPerSecond = REQUESTS_PER_SECOND;
@@ -31,6 +34,14 @@ class BroadcastEngine {
         for (const client of clients) {
             if (!client?.user) { logger.warn('Skipping invalid client'); continue; }
             this.clientLoadMap.set(client.user.id, 0);
+            if (!this.clientRateState.has(client.user.id)) {
+                this.clientRateState.set(client.user.id, {
+                    delay: COOLDOWN_TIME + MEMBER_COOLDOWN,
+                    nextAt: 0,
+                    successStreak: 0,
+                    rateLimits: 0
+                });
+            }
             try {
                 valid.push(client);
                 logger.info(`Client validated: ${client.user.tag}`);
@@ -52,6 +63,52 @@ class BroadcastEngine {
     _decLoad(client) {
         const n = this.clientLoadMap.get(client.user.id) || 0;
         if (n > 0) this.clientLoadMap.set(client.user.id, n - 1);
+    }
+
+    _rateState(client) {
+        return this.clientRateState.get(client.user.id);
+    }
+
+    async _waitForClient(client) {
+        const wait = Math.max(0, this._rateState(client).nextAt - Date.now());
+        if (wait) await sleep(wait);
+    }
+
+    _markSuccess(client) {
+        const state = this._rateState(client);
+        state.successStreak++;
+        if (state.successStreak >= 20) {
+            state.delay = Math.max(MIN_CLIENT_DELAY, state.delay - 25);
+            state.successStreak = 0;
+        }
+        state.nextAt = Date.now() + state.delay;
+    }
+
+    _markRateLimit(client, retryAfter = 0) {
+        const state = this._rateState(client);
+        state.rateLimits++;
+        state.successStreak = 0;
+        state.delay = Math.min(MAX_CLIENT_DELAY, Math.max(state.delay + 500, retryAfter));
+        state.nextAt = Date.now() + Math.max(state.delay, retryAfter);
+    }
+
+    _isRateLimit(error) {
+        return error?.status === 429 || error?.code === 429 || error?.name === 'RateLimitError';
+    }
+
+    async _sendWithBackoff(client, user, payload) {
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                await user.send(payload);
+                this._markSuccess(client);
+                return;
+            } catch (error) {
+                if (!this._isRateLimit(error) || attempt === 2) throw error;
+                const retryAfter = Math.min(MAX_CLIENT_DELAY, Math.max(1000, Number(error.retryAfter) || 0));
+                this._markRateLimit(client, retryAfter);
+                await sleep(retryAfter);
+            }
+        }
     }
 
     _distribute(members, count) {
@@ -141,37 +198,36 @@ class BroadcastEngine {
             sep()
         ));
 
-        const chunks = this._distribute([...members.values()], clientCount);
+        const queue = [...members.values()];
+        let cursor = 0;
+        const takeNext = () => queue[cursor++];
 
-        await Promise.all(chunks.map((chunk, i) =>
-            this._processChunk({ client: valid[i % clientCount], chunk, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage })
+        await Promise.all(valid.map(client =>
+            this._processQueue({ client, takeNext, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage })
         ));
 
         logger.info(`Broadcast done —  ${results.successCount}   ${results.failureCount}`);
         return this._finalize({ interaction, results, message, msgType, embedFooter, embedLink });
     }
 
-    async _processChunk({ client, chunk, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage }) {
-        if (!client?.user) {
-            chunk.forEach(() => { results.failureCount++; results.processedCount++; });
-            return;
-        }
+    async _processQueue({ client, takeNext, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage }) {
+        if (!client?.user) return;
 
-        logger.info(`${client.user.tag} → ${chunk.length} أعضاء`);
-
-        for (const member of chunk) {
+        let member;
+        while ((member = takeNext())) {
             try {
+                await this._waitForClient(client);
                 this._incLoad(client);
 
                 let user = client.users.cache.get(member.id)
-                    ?? await client.users.fetch(member.id, { force: true }).catch(() => null)
+                    ?? await client.users.fetch(member.id).catch(() => null)
                     ?? member.user;
 
                 if (!user) throw Object.assign(new Error('Cannot fetch user'), { code: -1 });
 
                 const guild   = member.guild;
                 const payload = this._buildPayload(message, msgType, embedTitle, embedColor, embedFooter, guild, embedLink, embedImage);
-                await user.send(payload);
+                await this._sendWithBackoff(client, user, payload);
                 results.successCount++;
             } catch (e) {
                 results.failureCount++;
@@ -182,6 +238,8 @@ class BroadcastEngine {
             } finally {
                 this._decLoad(client);
                 results.processedCount++;
+                const state = this._rateState(client);
+                if (state.nextAt < Date.now()) state.nextAt = Date.now() + state.delay;
 
                 const pct = results.totalMembers ? Math.floor(results.processedCount / results.totalMembers * 100) : 100;
                 const now = Date.now();
@@ -190,7 +248,6 @@ class BroadcastEngine {
                     await this._progressUI(interaction, results, pct);
                 }
 
-                await sleep(COOLDOWN_TIME + MEMBER_COOLDOWN);
             }
         }
     }
