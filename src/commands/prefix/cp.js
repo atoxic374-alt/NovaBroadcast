@@ -6,6 +6,7 @@ module.exports = {
     name: 'cp',
     async run(message) {
         const guild = message.guild;
+        const e = config.emojis;
         const header = new SectionBuilder()
             .addTextDisplayComponents(
                 txt('**## Control Panel**'),
@@ -27,10 +28,12 @@ module.exports = {
             new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('cp_bc')
+                    .setEmoji(e.broadcast)
                     .setLabel('Broadcast')
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
                     .setCustomId('cp_Nova_Realm')
+                    .setEmoji(e.search)
                     .setLabel('Status')
                     .setStyle(ButtonStyle.Secondary)
             )

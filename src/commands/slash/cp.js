@@ -7,6 +7,7 @@ module.exports = {
     data: { name: 'cp', description: 'Broadcast hub — all commands in one panel' },
     async run(interaction) {
         const guild = interaction.guild;
+        const e = config.emojis;
         const header = new SectionBuilder()
             .addTextDisplayComponents(
                 txt('**## Control Panel**'),
@@ -29,10 +30,12 @@ module.exports = {
             new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('cp_bc')
+                    .setEmoji(e.broadcast)
                     .setLabel('Broadcast')
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
                     .setCustomId('cp_Nova_Realm')
+                    .setEmoji(e.search)
                     .setLabel('Status')
                     .setStyle(ButtonStyle.Secondary)
             )
