@@ -9,7 +9,8 @@
   "author": "Nova Realm™",
   "license": "MIT",
   "description": "Advanced Discord broadcast system with multi-client support",
+  "engines": { "node": ">=18" },
   "dependencies": {
-    "discord.js": "^14.16.3"
+    "discord.js": "^14.19.0"
   }
 }

@@ -3,7 +3,23 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config.json');
 
-config.bot.tokens = config.bot.tokens.filter(t => t && !t.startsWith('TOKEN_'));
+// Tokens are read from environment variables first (Railway Variables), then config.json.
+// Supported: BOT_TOKENS (comma / newline separated), BOT_TOKEN, BOT_TOKEN_1 ... BOT_TOKEN_10
+const collectTokens = () => {
+    const list = [];
+    if (process.env.BOT_TOKENS) list.push(...process.env.BOT_TOKENS.split(/[\s,]+/));
+    if (process.env.BOT_TOKEN) list.push(process.env.BOT_TOKEN);
+    for (let i = 1; i <= 10; i++) {
+        if (process.env[`BOT_TOKEN_${i}`]) list.push(process.env[`BOT_TOKEN_${i}`]);
+    }
+    list.push(...(config.bot.tokens || []));
+    return [...new Set(list.map(t => (t || '').trim()).filter(t => t && !t.startsWith('TOKEN_')))];
+};
+
+config.bot.tokens = collectTokens();
+if (process.env.GUILD_ID) config.server.guildId = process.env.GUILD_ID;
+if (process.env.BC_ROLE_ID) config.server.bcRoleId = process.env.BC_ROLE_ID;
+if (process.env.REPORT_CHANNEL_ID) config.server.reportChannelId = process.env.REPORT_CHANNEL_ID;
 
 const { createLogger } = require('./src/core/Toolkit');
 const router = require('./src/core/CommandRouter');
@@ -85,7 +101,7 @@ const registerSlash = async (client) => {
 
     try {
         const rest = new REST({ version: '10' })
-            .setToken(config.bot.tokens[0]);
+            .setToken(client.token);
 
         await rest.put(
             Routes.applicationGuildCommands(
@@ -105,8 +121,8 @@ const initClients = async () => {
     logger.info('Initializing clients...');
 
     if (!config.bot.tokens?.length) {
-        logger.error('No tokens in config.json');
-        process.exit(1);
+        logger.warn('No bot tokens configured. Set BOT_TOKEN (main bot) and optionally BOT_TOKEN_2..BOT_TOKEN_5 in the environment variables. Running idle until tokens are added.');
+        return false;
     }
 
     for (const token of config.bot.tokens) {
@@ -141,7 +157,7 @@ const initClients = async () => {
             );
         } catch (e) {
             logger.error(
-                `Login failed for ${token.slice(0, 8)}...: ${e.message}`
+                `Login failed for token #${config.bot.tokens.indexOf(token) + 1}: ${e.message}`
             );
         }
     }
@@ -157,6 +173,7 @@ const initClients = async () => {
     await registerSlash(clients[0]);
 
     logger.info(`${clients.length} client(s) ready`);
+    return true;
 };
 
 const hasBcPermission = async (guild, member, userId) => {
@@ -300,7 +317,13 @@ process.on('unhandledRejection', (r) => {
 
     try {
 
-        await initClients();
+        const started = await initClients();
+
+        if (!started) {
+            // No tokens: stay alive and idle instead of crashing / restart-looping.
+            setInterval(() => {}, 1 << 30);
+            return;
+        }
 
         const engine = require('./src/core/BroadcastEngine');
 
@@ -318,12 +341,12 @@ process.on('unhandledRejection', (r) => {
 │   ╚═╝  ╚═══╝ ╚═════╝   ╚═══╝  ╚═╝  ╚═╝    ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝    │
 │                                                                                          │
 │                                STATUS       : ONLINE                                     │
-│                                SYSTEM       : BROADCAST v1.0                             │
+│                                SYSTEM       : BROADCAST v3.0                             │
 │                   ────────────────────────────────────────────────────────               │
 │                               🤖 BOTS     : ${String(bots).padEnd(35)}          │
 │                               ⚡ SPEED    : ~${String(speed).padEnd(34)}          │
-│                               📨 PREFIX   : ${PREFIX}cp │ ${PREFIX}help │ ${PREFIX}join │ ${PREFIX}left                  │
-│                               🔷 SLASH    : /cp │ /help │ /join │ /left                  │
+│                               📨 PREFIX   : ${PREFIX}cp │ ${PREFIX}help │ ${PREFIX}add │ ${PREFIX}left                   │
+│                               🔷 SLASH    : /cp │ /help │ /add │ /left                   │
 │                              💻 ENGINE   : discord.js v14                                │
 │                                                                                          │
 │                              [ Nova Realm™ ] :: BROADCAST CORE ACTIVE                    │
