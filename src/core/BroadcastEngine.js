@@ -36,6 +36,7 @@ class BroadcastEngine {
 
         for (const client of clients) {
             if (!client?.user) { logger.warn('Skipping invalid client'); continue; }
+            client.botIndex = valid.length + 1;
             this.clientLoadMap.set(client.user.id, 0);
             if (!this.clientRateState.has(client.user.id)) {
                 this.clientRateState.set(client.user.id, {
