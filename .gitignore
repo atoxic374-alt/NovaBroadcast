@@ -1,3 +1,4 @@
 node_modules/
 .env
 data/tokens.json
+data/broadcast-checkpoint.json

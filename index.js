@@ -161,6 +161,7 @@ const initClients = async () => {
     await engine.initialize(clients);
     await registerSlash(clients[0]);
     runtime.setAddTokenHandler(addRuntimeToken);
+    await engine.resumeCheckpoint();
 
     logger.info(`${clients.length} client(s) ready`);
     return true;

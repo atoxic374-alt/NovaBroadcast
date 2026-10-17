@@ -7,6 +7,7 @@ const {
 } = require('discord.js');
 
 const config = require('../../config');
+const checkpoint = require('./Checkpoint');
 
 const COOLDOWN_TIME      = 900;
 const MEMBER_COOLDOWN    = 100;
@@ -192,6 +193,23 @@ class BroadcastEngine {
 
         if (!clientCount) { logger.error('No clients available'); return null; }
 
+        const checkpointState = {
+            version: 1,
+            guildId: interaction?.guild?.id || uniqueMembers[0]?.guild?.id,
+            reportChannelId: interaction?.channelId || null,
+            message,
+            msgType,
+            embedTitle,
+            embedColor,
+            embedFooter,
+            embedLink,
+            embedImage,
+            memberIds: uniqueMembers.map(member => member.id),
+            completedMemberIds: [],
+            savedAt: new Date().toISOString()
+        };
+        if (checkpointState.guildId) checkpoint.save(checkpointState);
+
         const results = {
             totalMembers,
             successCount:   0,
@@ -200,7 +218,8 @@ class BroadcastEngine {
             startTime:      Date.now(),
             lastUIUpdate:   Date.now(),
             lastUIProcessed: 0,
-            processedCount: 0
+            processedCount: 0,
+            checkpoint: checkpointState
         };
 
         const rps    = REQUESTS_PER_SECOND * clientCount;
@@ -211,7 +230,7 @@ class BroadcastEngine {
         results.msgType = typeLabel;
 
         await this._updateUI(interaction, buildContainer(config.colors.main,
-            headerSection(interaction.guild, `**## Processing Broadcast**`, `- Starting broadcast to **${totalMembers}** أعضاء. Please wait while the system delivers your message.`),
+            headerSection(interaction?.guild, `**## Processing Broadcast**`, `- Starting broadcast to **${totalMembers}** أعضاء. Please wait while the system delivers your message.`),
             sep(false),
             txt(`**[${createProgressBar(0, 20)}] 0%**`),
             txt([
@@ -293,6 +312,13 @@ class BroadcastEngine {
                 if (slotAcquired) this._releaseSendSlot(client);
                 this._decLoad(client);
                 results.processedCount++;
+                if (results.checkpoint) {
+                    results.checkpoint.completedMemberIds.push(member.id);
+                    if (results.processedCount % 5 === 0 || results.processedCount === results.totalMembers) {
+                        results.checkpoint.savedAt = new Date().toISOString();
+                        checkpoint.save(results.checkpoint);
+                    }
+                }
                 const state = this._rateState(client);
                 if (state.nextAt < Date.now()) state.nextAt = Date.now() + state.delay;
 
@@ -335,6 +361,53 @@ class BroadcastEngine {
         ));
     }
 
+    async resumeCheckpoint() {
+        const saved = checkpoint.load();
+        if (!saved || !this.clients[0]) return false;
+
+        try {
+            const client = this.clients[0];
+            const guild = client.guilds.cache.get(saved.guildId)
+                || await client.guilds.fetch(saved.guildId);
+            await guild.members.fetch();
+
+            const completed = new Set(saved.completedMemberIds || []);
+            const members = new Map();
+            for (const id of saved.memberIds) {
+                if (completed.has(id)) continue;
+                const member = guild.members.cache.get(id);
+                if (member && !member.user.bot) members.set(id, member);
+            }
+
+            if (!members.size) {
+                checkpoint.clear();
+                logger.info('Checkpoint found with no pending members; cleared.');
+                return true;
+            }
+
+            logger.info(`Resuming broadcast checkpoint: ${members.size} pending member(s)`);
+            await this.startBroadcast({
+                interaction: {
+                    guild,
+                    channelId: saved.reportChannelId,
+                    editReply: async () => {}
+                },
+                members,
+                message: saved.message,
+                msgType: saved.msgType,
+                embedTitle: saved.embedTitle,
+                embedColor: saved.embedColor,
+                embedFooter: saved.embedFooter,
+                embedLink: saved.embedLink,
+                embedImage: saved.embedImage
+            });
+            return true;
+        } catch (error) {
+            logger.error(`Checkpoint resume failed: ${error.message}`);
+            return false;
+        }
+    }
+
     async _finalize({ interaction, results, message, msgType = 'normal', embedFooter = null, embedLink = null }) {
         const elapsed   = Date.now() - results.startTime;
         const avgSpeed  = elapsed > 0 ? Math.round(results.totalMembers / (elapsed / 1000)) : 0;
@@ -369,6 +442,8 @@ class BroadcastEngine {
             ].join('\n')),
             sep()
         ));
+
+        checkpoint.clear();
 
         return results;
     }
@@ -430,6 +505,7 @@ class BroadcastEngine {
     }
 
     async _updateUI(interaction, container) {
+        if (!interaction?.editReply) return;
         try {
             await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
         } catch (e) { logger.error('UI update failed:', e); }
