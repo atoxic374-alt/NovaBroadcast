@@ -16,8 +16,7 @@
     },
     "server": {
         "guildId": "1373311613465268284",
-        "bcRoleId": "1378835197633626264",
-        "reportChannelId": "1385068365504053310"
+        "bcRoleId": "1378835197633626264"
     },
     "colors": {
         "main": "#FFFFFF",

@@ -56,8 +56,7 @@ Edit `config.json` before starting:
     },
     "server": {
         "guildId": "1373311613465268284",
-        "bcRoleId": "1378835197633626264",
-        "reportChannelId": "1385068365504053310"
+        "bcRoleId": "1378835197633626264"
     },
     "colors": {
         "main": "#FFFFFF",
@@ -93,7 +92,6 @@ Edit `config.json` before starting:
 | `tokens` | Bot tokens — add up to 5 for faster broadcasts |
 | `guildId` | Your server ID |
 | `bcRoleId` | Only members with this role can use the broadcast |
-| `reportChannelId` | Channel where the post-broadcast report is sent |
 | `emojis` | Your emojis ID |
 
 ### Environment variables (recommended — Railway)
@@ -102,10 +100,10 @@ Do NOT commit tokens to `config.json`. Set these variables instead:
 
 | Variable | Description |
 |----------|-------------|
-| `BOT_TOKEN` | Main bot token (handles commands, panels, reports) |
+| `BOT_TOKEN` | Main bot token (handles commands and panels) |
 | `BOT_TOKEN_2` … `BOT_TOKEN_5` | Optional extra bots for faster broadcasts |
 | `BOT_TOKENS` | Alternative: all tokens, comma separated |
-| `GUILD_ID`, `BC_ROLE_ID`, `REPORT_CHANNEL_ID` | Optional overrides for `config.json` |
+| `GUILD_ID`, `BC_ROLE_ID` | Optional overrides for `config.json` |
 | `BOT_SETTINGS_FILE` | Optional path for the persisted activity and prefix settings file |
 | `OWNER_IDS` | Comma- or space-separated Discord user IDs; these environment owners receive bot failure and removal alerts by DM |
 | `RUNTIME_TOKENS_FILE` | Optional path for the private file storing tokens added with `/add token` |
@@ -128,6 +126,8 @@ npm start
 
 ### `/bc` or `%bc`
 Opens the main control panel with all commands as buttons.
+
+Broadcast progress and the final summary update the original command response. No separate report is sent to a report channel.
 
 ### `/help` or `+help`
 Shows available commands and system info.

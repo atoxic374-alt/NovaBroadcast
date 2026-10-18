@@ -17,7 +17,7 @@ const MAX_CLIENT_DELAY   = 6000;
 const PREFETCH_PER_CLIENT = 4;
 const START_CLIENT_CONCURRENCY = 3;
 const REQUESTS_PER_SECOND = 1000 / (COOLDOWN_TIME + MEMBER_COOLDOWN);
-const { sleep, createLogger, createProgressBar, buildContainer, txt, sep, headerSection } = require('./Toolkit');
+const { sleep, createLogger, createProgressBar, buildContainer, txt, sep } = require('./Toolkit');
 
 const logger = createLogger('BroadcastEngine');
 
@@ -247,7 +247,6 @@ class BroadcastEngine {
         const checkpointState = {
             version: 1,
             guildId,
-            reportChannelId: interaction?.channelId || null,
             message,
             msgType,
             embedTitle,
@@ -278,20 +277,22 @@ class BroadcastEngine {
         const etaMs  = ((COOLDOWN_TIME + MEMBER_COOLDOWN) / clientCount) * totalMembers;
         const etaMin = Math.floor(etaMs / 60000);
         const etaSec = Math.floor((etaMs % 60000) / 1000);
-        const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
+        const typeLabel = msgType === 'embed' ? 'مضمنة (Embed)' : 'عادية (Normal)';
         results.msgType = typeLabel;
 
         await this._updateUI(interaction, buildContainer(config.colors.main,
-            headerSection(interaction?.guild, `**## Processing Broadcast**`, `- Starting broadcast to **${totalMembers}** أعضاء. Please wait while the system delivers your message.`),
+            txt(`**## جاري إرسال البرودكاست**\nسيتم تحديث هذه الرسالة باستمرار حتى اكتمال الإرسال.`),
             sep(false),
             txt(`**[${createProgressBar(0, 20)}] 0%**`),
             txt([
-                `✓ **Accepted:** 0   ✗ **Failed:** 0`,
-                `**Processed:** 0 / ${totalMembers} أعضاء`,
-                `**Time Left:** ${etaMin}m ${etaSec}s`,
-                `**Speed:** ~${rps.toFixed(1)}/sec`,
-                `**Bots:** ${clientCount}`,
-                `**Type:** ${typeLabel}`
+                `تم الإرسال بنجاح : 0`,
+                `تعذر الإرسال : 0`,
+                `تمت المعالجة : 0 / ${totalMembers}`,
+                `المتبقي : ${totalMembers}`,
+                `الوقت المتوقع : ${etaMin} د ${etaSec} ث`,
+                `سرعة الإرسال : ~${rps.toFixed(1)} رسالة / ثانية`,
+                `البوتات المستخدمة : ${clientCount}`,
+                `نوع الرسالة : ${typeLabel}`
             ].join('\n')),
             sep()
         ));
@@ -398,16 +399,19 @@ class BroadcastEngine {
         const bar       = createProgressBar(pct, 20);
 
         await this._updateUI(interaction, buildContainer(config.colors.main,
-            headerSection(interaction.guild, `**## Processing Broadcast**`, `- جاري تنفيذ الإرسال. يتم تحديث الإحصائيات تلقائيًا.`),
+            txt('**## جاري إرسال البرودكاست**\nهذه الرسالة تعرض آخر إحصائيات الإرسال.'),
             sep(false),
             txt(`**[${bar}] ${pct}%**`),
             txt([
-                `✓ **Accepted:** ${results.successCount}   ✗ **Failed:** ${results.failureCount}`,
-                `**Processed:** ${processed} / ${results.totalMembers}   **Remaining:** ${remaining}`,
-                `**Time Left:** ${etaMin}m ${etaSec}s`,
-                `**Elapsed:** ${Math.floor(elapsed / 60000)}m ${Math.floor((elapsed % 60000) / 1000)}s`,
-                `**Speed:** ~${curSpeed}/sec   **Bots:** ${this.clients.length}`,
-                `**Type:** ${results.msgType || 'Broadcast'}`
+                `تم الإرسال بنجاح : ${results.successCount}`,
+                `تعذر الإرسال : ${results.failureCount}`,
+                `تمت المعالجة : ${processed} / ${results.totalMembers}`,
+                `المتبقي : ${remaining}`,
+                `الوقت المتوقع : ${etaMin} د ${etaSec} ث`,
+                `الوقت المنقضي : ${Math.floor(elapsed / 60000)} د ${Math.floor((elapsed % 60000) / 1000)} ث`,
+                `سرعة الإرسال : ~${curSpeed} رسالة / ثانية`,
+                `البوتات المستخدمة : ${this.clients.length}`,
+                `نوع الرسالة : ${results.msgType || 'البرودكاست'}`
             ].join('\n')),
             sep()
         ));
@@ -441,7 +445,6 @@ class BroadcastEngine {
             await this.startBroadcast({
                 interaction: {
                     guild,
-                    channelId: saved.reportChannelId,
                     editReply: async () => {}
                 },
                 members,
@@ -466,103 +469,50 @@ class BroadcastEngine {
         const avgSpeed  = elapsed > 0 ? Math.round(results.totalMembers / (elapsed / 1000)) : 0;
         const pct       = results.totalMembers ? Math.floor(results.successCount / results.totalMembers * 100) : 0;
         const bar       = createProgressBar(pct, 20);
-        const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
-        const footerLabel = embedFooter ? `Footer: ${embedFooter}` : '';
+        const typeLabel = msgType === 'embed' ? 'مضمنة (Embed)' : 'عادية (Normal)';
         const failureSummary = Object.entries(results.failureReasons || {})
-            .map(([reason, count]) => `${reason}: ${count}`)
-            .join(' | ') || 'None';
-        const guild     = interaction.guild;
+            .map(([reason, count]) => `- ${reason} : ${count}`)
+            .join('\n') || 'لا يوجد';
+        const duration = `${Math.floor(elapsed / 60000)} د ${Math.floor((elapsed % 60000) / 1000)} ث`;
+        const preview = String(message || '').slice(0, 200);
+        const summary = [
+            '**ملخص النتائج**',
+            `إجمالي الأعضاء : ${results.totalMembers}`,
+            `تم الإرسال بنجاح : ${results.successCount}`,
+            `تعذر الإرسال : ${results.failureCount}`,
+            `نسبة النجاح : ${pct}%`,
+            `تمت المعالجة : ${results.processedCount} / ${results.totalMembers}`,
+            '',
+            '**الأداء**',
+            `مدة الإرسال : ${duration}`,
+            `متوسط السرعة : ~${avgSpeed} رسالة / ثانية`,
+            `نوع الرسالة : ${typeLabel}`,
+            '',
+            '**أسباب التعذر**',
+            failureSummary
+        ];
+        if (preview) summary.push('', `**معاينة الرسالة :** ${preview}${String(message).length > 200 ? '…' : ''}`);
+        if (embedFooter) summary.push(`تذييل التضمين : ${embedFooter}`);
+        if (embedLink) summary.push(`رابط الزر : ${embedLink}`);
 
-        const reportChannelId = process.env.REPORT_CHANNEL_ID || interaction.channelId;
-        if (reportChannelId) {
-            try {
-                const ch = await this.clients[0].channels.fetch(reportChannelId);
-                if (ch) await ch.send({
-                    components: [this._reportContainer(results, message, msgType, embedFooter, embedLink, guild)],
-                    flags: MessageFlags.IsComponentsV2
-                });
-            } catch (e) { logger.error(`Report channel failed: ${e.message}`); }
-        }
+        const failedMembers = results.failedMembers || [];
+        const failedNames = failedMembers.slice(0, 30).map(id => {
+            const user = this.clients[0]?.users?.cache?.get(id);
+            return user?.tag || user?.username || `ID ${id}`;
+        });
+        if (failedMembers.length > 30) failedNames.push(`و ${failedMembers.length - 30} آخرون`);
 
         await this._updateUI(interaction, buildContainer(config.colors.success,
-            headerSection(guild, '**## Broadcast Completed**', '- اكتمل الإرسال بنجاح. تم إرسال التقرير التفصيلي إلى قناة التقارير.'),
+            txt('**## اكتمل البرودكاست**\nالملخص النهائي وتفاصيل الإرسال في هذه الرسالة.'),
             sep(false),
-            txt([
-                `**[${bar}] ${pct}%**`,
-                `✓ **Accepted:** ${results.successCount}`,
-                `✗ **Failed:** ${results.failureCount}`,
-                `**Processed:** ${results.processedCount} / ${results.totalMembers}`,
-                `**Failure Reasons:** ${failureSummary}`,
-                `**Total Time:** ${Math.floor(elapsed / 60000)}m ${Math.floor((elapsed % 60000) / 1000)}s`,
-                `**Avg Speed:** ~${avgSpeed}/sec`,
-                `**Type:** ${typeLabel}`
-            ].join('\n')),
+            txt(`**[${bar}] ${pct}%**\n\n${summary.join('\n')}`),
+            ...(failedNames.length ? [sep(false), txt(`**الأعضاء الذين تعذر الإرسال لهم (${failedMembers.length}) :**\n${failedNames.join('\n')}`)] : []),
             sep()
         ));
 
         checkpoint.clear();
 
         return results;
-    }
-
-    _reportContainer(results, message, msgType = 'normal', embedFooter = null, embedLink = null, guild = null) {
-        const preview   = message.length > 200 ? message.slice(0, 200) + '…' : message;
-        const pct       = results.totalMembers ? Math.floor(results.successCount / results.totalMembers * 100) : 0;
-        const typeLabel = msgType === 'embed' ? `Embed` : `Normal`;
-        const failureSummary = Object.entries(results.failureReasons || {})
-            .map(([reason, count]) => `${reason}: ${count}`)
-            .join(' | ') || 'None';
-
-        const container = buildContainer(config.colors.warning,
-            headerSection(guild, `## Broadcast Report`),
-            sep(false),
-            txt(`**Message:**\n\`\`\`${preview}\`\`\``),
-            txt([
-                `**Total:** ${results.totalMembers}`,
-                `**Success:** ${results.successCount}`,
-                `**Failed:** ${results.failureCount}`,
-                `**Rate:** ${pct}%`,
-                `**Failure Reasons:** ${failureSummary}`,
-                `**Type:** ${typeLabel}`
-            ].join('\n'))
-        );
-
-        if (embedFooter) {
-            container.addSeparatorComponents(sep());
-            container.addTextDisplayComponents(txt(`**Footer:** ${embedFooter}`));
-        }
-
-        if (embedLink) {
-            container.addSeparatorComponents(sep());
-            container.addTextDisplayComponents(txt(`**Link Button:** ${embedLink}`));
-        }
-
-        if (results.failedMembers.length) {
-            const PER_CHUNK  = 30;
-            const MAX_CHUNKS = 5;
-            const names      = results.failedMembers.map(id => {
-                const u = this.clients[0].users.cache.get(id);
-                return u ? u.tag : `<@${id}>`;
-            });
-
-            const chunks = [];
-            for (let i = 0; i < names.length; i += PER_CHUNK)
-                chunks.push(names.slice(i, i + PER_CHUNK));
-
-            const displayChunks = chunks.slice(0, MAX_CHUNKS);
-            const leftover      = names.length - displayChunks.flat().length;
-
-            container.addSeparatorComponents(sep());
-            displayChunks.forEach((ch, idx) =>
-                container.addTextDisplayComponents(
-                    txt(`**Failed Members${idx > 0 ? ` (cont. ${idx + 1})` : ''}:**\n${ch.join(', ')}`)
-                )
-            );
-            if (leftover > 0)
-                container.addTextDisplayComponents(txt(`*...and ${leftover} more. Check console logs.*`));
-        }
-
-        return container;
     }
 
     async _updateUI(interaction, container) {
@@ -575,7 +525,8 @@ class BroadcastEngine {
         const previous = this.uiUpdateQueues.get(interaction) || Promise.resolve();
         const next = previous.catch(() => null).then(() => edit({
             components: [container],
-            flags: MessageFlags.IsComponentsV2
+            flags: MessageFlags.IsComponentsV2,
+            allowedMentions: { parse: [] }
         })).catch((e) => logger.error('UI update failed:', e));
         this.uiUpdateQueues.set(interaction, next);
         await next;
