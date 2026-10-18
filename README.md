@@ -108,6 +108,7 @@ Do NOT commit tokens to `config.json`. Set these variables instead:
 | `GUILD_ID`, `BC_ROLE_ID`, `REPORT_CHANNEL_ID` | Optional overrides for `config.json` |
 | `BOT_SETTINGS_FILE` | Optional path for the persisted activity and prefix settings file |
 | `OWNER_IDS` | Comma- or space-separated Discord user IDs; these environment owners receive bot failure and removal alerts by DM |
+| `RUNTIME_TOKENS_FILE` | Optional path for the private file storing tokens added with `/add token` |
 
 Health alerts are sent only to IDs in `OWNER_IDS`, not to users added through the `owners` command. A connected bot sends the DM; if no bot is connected at that moment, the alert is queued until one reconnects. If every bot is offline, no bot is available to deliver a DM.
 
@@ -136,6 +137,8 @@ Changes the command prefix to `!`. Mention the bot to see its current prefix.
 
 ### `/add` or `+add`
 Add your bot in one click.
+
+Environment owners can add multiple tokens with `/add token` or `+add token`. Separate tokens with spaces, new lines, commas, semicolons, or `|` (for example, `+add token TOKEN1|TOKEN2`). The response lists added bots, skipped duplicates, and failed tokens without echoing any token values. Multiple tokens pasted directly together with no separator cannot be safely distinguished. The default token store is `data/tokens.json`; for persistence across Railway redeploys, mount a volume and set `RUNTIME_TOKENS_FILE=/data/tokens.json`.
 
 ### `/left` or `+left`
 Remove your bot in one click.

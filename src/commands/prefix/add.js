@@ -5,6 +5,7 @@ const { isEnvironmentOwner } = require('../../core/Owners');
 const runtime = require('../../core/Runtime');
 const { buildContainer, txt, sep, headerSection } = require('../../core/Toolkit');
 const { createLogger } = require('../../core/Toolkit');
+const { addTokenBatch, formatTokenBatchReport } = require('../../core/TokenBatch');
 
 const logger = createLogger('AddCommand');
 const INVITE_PERMISSIONS = '0';
@@ -21,23 +22,29 @@ module.exports = {
         if (!canUse(message.member)) return;
 
         if (args[0]?.toLowerCase() === 'token') {
-            const token = args[1];
-            await message.delete().catch(() => {});
             if (!isEnvironmentOwner(message.author.id)) {
                 return tokenReply(message, 'Permission Denied', 'هذا الأمر متاح فقط للمالكين الموجودين في متغير `OWNER_IDS`.', config.colors.error);
             }
-            if (!token) return tokenReply(message, 'Token Error', 'استخدم الأمر بهذا الشكل: `+add token TOKEN`.', config.colors.error);
+            const input = args.slice(1).join(' ');
+            if (!input.trim()) return tokenReply(message, 'Token Error', 'استخدم `+add token TOKEN1 TOKEN2` أو افصل التوكنات بفاصلة أو `|` أو سطر جديد.', config.colors.error);
 
-            const result = await runtime.addToken(token);
-            if (!result.ok) return tokenReply(message, 'Token Error', result.reason, config.colors.error);
-            logger.info(`Token added by ${message.author.tag}; total clients: ${result.count}`);
-            return tokenReply(message, 'Token Added', `تمت إضافة البوت **${result.tag}** وتشغيله بنجاح. العدد الحالي: **${result.count}**.`);
+            const deleted = await message.delete().then(() => true).catch(() => false);
+            if (!deleted) {
+                return tokenReply(message, 'Token Input Not Removed', 'لم أتمكن من حذف رسالة التوكنات؛ لم أبدأ المعالجة لحماية أسرارك. احذف الرسالة يدويًا، ثم استخدم الأمر slash الخاص بـ `/add token` أو امنح البوت صلاحية Manage Messages.', config.colors.error);
+            }
+            const result = await addTokenBatch(input, runtime);
+            if (!result.total) return tokenReply(message, 'Token Error', 'لم أجد أي توكن في الرسالة. افصل التوكنات بمسافة أو فاصلة أو `|` أو سطر جديد.', config.colors.error);
+            const color = result.added.length
+                ? (result.failed.length ? config.colors.warning : config.colors.success)
+                : (result.failed.length ? config.colors.error : config.colors.warning);
+            logger.info(`Token batch by ${message.author.tag}: ${result.added.length} added, ${result.duplicates.length} duplicate, ${result.failed.length} failed`);
+            return tokenReply(message, 'Token Batch Results', formatTokenBatchReport(result), color);
         }
 
         const engine = require('../../core/BroadcastEngine');
         const clients = engine.clients;
         if (!clients || clients.length < 2) {
-            return tokenReply(message, 'No Secondary Bots', 'لا توجد بوتات إضافية محملة. استخدم `+add token TOKEN` لإضافة توكن جديد.', config.colors.warning);
+            return tokenReply(message, 'No Secondary Bots', `لا توجد بوتات إضافية محملة. استخدم \`${config.prefix}add token TOKEN\` لإضافة توكن جديد.`, config.colors.warning);
         }
 
         const secondaryClients = clients.slice(1);

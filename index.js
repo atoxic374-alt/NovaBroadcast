@@ -200,10 +200,10 @@ const createClient = () => new Client({
 const addRuntimeToken = async (token) => {
     const normalized = String(token || '').trim();
     if (!normalized || normalized.startsWith('TOKEN_')) {
-        return { ok: false, reason: 'التوكن غير صالح.' };
+        return { ok: false, code: 'invalid', reason: 'التوكن غير صالح.' };
     }
     if (config.bot.tokens.includes(normalized)) {
-        return { ok: false, reason: 'هذا التوكن مضاف مسبقًا.' };
+        return { ok: false, code: 'duplicate', reason: 'هذا التوكن مضاف مسبقًا.' };
     }
 
     const client = createClient();
@@ -211,16 +211,22 @@ const addRuntimeToken = async (token) => {
     client.botIndex = clients.length + 1;
     loadEvents(client);
     attachListeners(client);
+    let addedToClients = false;
+    let addedToConfig = false;
     try {
         await client.login(normalized);
         clients.push(client);
+        addedToClients = true;
         await flushPendingOwnerAlerts(clients);
         config.bot.tokens.push(normalized);
+        addedToConfig = true;
         const engine = require('./src/core/BroadcastEngine');
         await engine.initialize(clients);
         logger.info(`Runtime bot added: ${client.user.tag}`);
         return { ok: true, tag: client.user.tag, count: clients.length };
     } catch (error) {
+        if (addedToClients) clients.splice(clients.indexOf(client), 1);
+        if (addedToConfig) config.bot.tokens = config.bot.tokens.filter(value => value !== normalized);
         client.destroy();
         logger.warn(`Runtime token rejected: ${error.code || error.name || 'login_failed'}`);
         void notifyEnvironmentOwners(clients, {
@@ -228,7 +234,18 @@ const addRuntimeToken = async (token) => {
             details: `تعذر تسجيل دخول بوت جديد أثناء التشغيل. نوع الخطأ: ${error.code || error.name || 'login_failed'}.`,
             dedupeKey: `runtime-login-failed:${error.code || error.name || 'login_failed'}`
         });
-        return { ok: false, reason: 'تعذر تسجيل الدخول بهذا التوكن.' };
+        const invalidToken = error.code === 'TokenInvalid'
+            || error.name === 'TokenInvalid'
+            || /invalid token/i.test(String(error.message || ''));
+        if (addedToClients) {
+            const engine = require('./src/core/BroadcastEngine');
+            await engine.initialize(clients).catch(() => {});
+        }
+        return {
+            ok: false,
+            code: invalidToken ? 'invalid' : 'failed',
+            reason: invalidToken ? 'التوكن غير صالح أو تم إلغاؤه.' : 'تعذر تشغيل البوت بسبب خطأ اتصال أو تشغيل.'
+        };
     }
 };
 

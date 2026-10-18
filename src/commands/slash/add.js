@@ -5,6 +5,7 @@ const { isEnvironmentOwner } = require('../../core/Owners');
 const runtime = require('../../core/Runtime');
 const { buildContainer, txt, sep, headerSection } = require('../../core/Toolkit');
 const { createLogger } = require('../../core/Toolkit');
+const { addTokenBatch, formatTokenBatchReport } = require('../../core/TokenBatch');
 
 const logger = createLogger('AddCommand');
 const INVITE_PERMISSIONS = '0';
@@ -19,7 +20,7 @@ module.exports = {
             .setDescription('Add and start a bot token')
             .addStringOption(option => option
                 .setName('token')
-                .setDescription('The bot token is handled privately')
+                .setDescription('Paste one or more tokens separated by spaces, commas, |, or new lines')
                 .setRequired(true))),
 
     async run(interaction) {
@@ -30,13 +31,21 @@ module.exports = {
             if (!isEnvironmentOwner(interaction.user.id)) {
                 return interaction.editReply({ content: '**Permission Denied**\nهذا الأمر متاح فقط للمالكين الموجودين في متغير `OWNER_IDS`.' });
             }
-            const token = interaction.options.getString('token', true);
-            const result = await runtime.addToken(token);
-            if (!result.ok) {
-                return interaction.editReply({ content: `**Token Error**\n${result.reason}` });
+            const input = interaction.options.getString('token', true);
+            const result = await addTokenBatch(input, runtime);
+            if (!result.total) {
+                return interaction.editReply({ content: 'لم أجد أي توكن. افصل التوكنات بمسافة أو فاصلة أو `|` أو سطر جديد.' });
             }
-            logger.info(`Token added by ${interaction.user.tag}; total clients: ${result.count}`);
-            return interaction.editReply({ content: `**Token Added**\nتمت إضافة البوت **${result.tag}** وتشغيله بنجاح. العدد الحالي: **${result.count}**.` });
+            const color = result.added.length
+                ? (result.failed.length ? config.colors.warning : config.colors.success)
+                : (result.failed.length ? config.colors.error : config.colors.warning);
+            logger.info(`Token batch by ${interaction.user.tag}: ${result.added.length} added, ${result.duplicates.length} duplicate, ${result.failed.length} failed`);
+            return interaction.editReply({
+                components: [buildContainer(color,
+                    headerSection(interaction.guild, '**## Token Batch Results**', formatTokenBatchReport(result))
+                )],
+                flags: MessageFlags.IsComponentsV2
+            });
         }
 
         const engine = require('../../core/BroadcastEngine');

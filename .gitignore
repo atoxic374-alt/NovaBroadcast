@@ -1,6 +1,7 @@
 node_modules/
 .env
 data/tokens.json
+data/tokens.json.*.tmp
 data/broadcast-checkpoint.json
 data/broadcast-cooldown.json
 data/bot-settings.json
