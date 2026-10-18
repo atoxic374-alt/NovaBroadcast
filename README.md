@@ -136,7 +136,7 @@ Shows available commands and system info.
 Changes the command prefix to `!`. Mention the bot to see its current prefix.
 
 ### `/add` or `+add`
-Add your bot in one click.
+Use `+add` or `/add links` to view invitation links for every connected bot, including the main bot labeled `(البوت الرئيسي)`. Invite links use `integration_type=0` with `applications.commands+bot` scope and omit the `permissions` parameter. Discord may still create its standard bot role when a bot is added; the link does not control that automatic behavior.
 
 Environment owners can add multiple tokens with `/add token` or `+add token`. Separate tokens with spaces, new lines, commas, semicolons, or `|` (for example, `+add token TOKEN1|TOKEN2`). The response lists added bots, skipped duplicates, and failed tokens without echoing any token values. Multiple tokens pasted directly together with no separator cannot be safely distinguished. The default token store is `data/tokens.json`; for persistence across Railway redeploys, mount a volume and set `RUNTIME_TOKENS_FILE=/data/tokens.json`.
 

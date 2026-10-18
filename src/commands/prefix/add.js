@@ -8,7 +8,7 @@ const { createLogger } = require('../../core/Toolkit');
 const { addTokenBatch, formatTokenBatchReport } = require('../../core/TokenBatch');
 
 const logger = createLogger('AddCommand');
-const INVITE_PERMISSIONS = '0';
+const inviteLink = client => `https://discord.com/oauth2/authorize?client_id=${client.user.id}&integration_type=0&scope=applications.commands+bot`;
 
 const tokenReply = (message, title, description, color = config.colors.main) => message.reply({
     components: [buildContainer(color, headerSection(message.guild, `**## ${title}**`, `- ${description}`))],
@@ -43,29 +43,29 @@ module.exports = {
 
         const engine = require('../../core/BroadcastEngine');
         const clients = engine.clients;
-        if (!clients || clients.length < 2) {
-            return tokenReply(message, 'No Secondary Bots', `لا توجد بوتات إضافية محملة. استخدم \`${config.prefix}add token TOKEN\` لإضافة توكن جديد.`, config.colors.warning);
+        const inviteBots = (clients || []).filter(client => client?.user?.id);
+        if (!inviteBots.length) {
+            return tokenReply(message, 'No Bots Available', `لا توجد بوتات متصلة لإظهار روابطها. استخدم \`${config.prefix}add token TOKEN\` لإضافة توكن جديد.`, config.colors.warning);
         }
 
-        const secondaryClients = clients.slice(1);
-        const lines = secondaryClients.map((client, i) => {
-            const link = `https://discord.com/oauth2/authorize?client_id=${client.user.id}&scope=bot&permissions=${INVITE_PERMISSIONS}`;
-            return `**Bot ${i + 2}:** [${client.user.tag}](${link})`;
+        const lines = inviteBots.map((client, i) => {
+            const mainLabel = i === 0 ? ' (البوت الرئيسي)' : '';
+            return `**Bot ${i + 1}${mainLabel}:** [${client.user.tag}](${inviteLink(client)})`;
         });
-        const buttons = secondaryClients.map((client, i) => {
-            const link = `https://discord.com/oauth2/authorize?client_id=${client.user.id}&scope=bot&permissions=${INVITE_PERMISSIONS}`;
-            return new ButtonBuilder().setLabel(`Add Bot ${i + 2}`).setURL(link).setStyle(ButtonStyle.Link);
+        const buttons = inviteBots.map((client, i) => {
+            const label = i === 0 ? 'البوت الرئيسي' : `Add Bot ${i + 1}`;
+            return new ButtonBuilder().setLabel(label).setURL(inviteLink(client)).setStyle(ButtonStyle.Link);
         });
         const rows = [];
         for (let i = 0; i < buttons.length; i += 5) rows.push(new ActionRowBuilder().addComponents(...buttons.slice(i, i + 5)));
 
         const container = buildContainer(config.colors.main,
-            headerSection(message.guild, '**## Bot Invite Links**', '- اضغط على الأزرار أدناه لإضافة البوتات الإضافية إلى خادمك.'),
+            txt('**## Bot Invite Links**\n- روابط جميع البوتات. البوت الرئيسي موضح بعبارة (البوت الرئيسي).'),
             sep(false),
-            txt(`**البوتات الإضافية (${secondaryClients.length}):**\n${lines.join('\n')}`),
+            txt(`**كل البوتات (${inviteBots.length}):**\n${lines.join('\n')}`),
             sep(), ...rows
         );
-        logger.info(`+add used by ${message.author.tag} — ${secondaryClients.length} bot(s) listed`);
+        logger.info(`+add used by ${message.author.tag} — ${inviteBots.length} bot(s) listed`);
         return message.reply({ components: [container], flags: MessageFlags.IsComponentsV2 });
     }
 };
