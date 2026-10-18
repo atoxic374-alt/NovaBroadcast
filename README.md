@@ -106,6 +106,12 @@ Do NOT commit tokens to `config.json`. Set these variables instead:
 | `BOT_TOKEN_2` … `BOT_TOKEN_5` | Optional extra bots for faster broadcasts |
 | `BOT_TOKENS` | Alternative: all tokens, comma separated |
 | `GUILD_ID`, `BC_ROLE_ID`, `REPORT_CHANNEL_ID` | Optional overrides for `config.json` |
+| `BOT_SETTINGS_FILE` | Optional path for the persisted activity and prefix settings file |
+| `OWNER_IDS` | Comma- or space-separated Discord user IDs; these environment owners receive bot failure and removal alerts by DM |
+
+Health alerts are sent only to IDs in `OWNER_IDS`, not to users added through the `owners` command. A connected bot sends the DM; if no bot is connected at that moment, the alert is queued until one reconnects. If every bot is offline, no bot is available to deliver a DM.
+
+Activity changes made with the status command and the current prefix are saved in `data/bot-settings.json` by default. For Railway redeploys (not just process restarts), attach a persistent volume mounted at `/data` and set `BOT_SETTINGS_FILE=/data/bot-settings.json`; without a mounted volume, the platform may replace the container's local files during redeploy.
 
 Enable **Server Members**, **Presence** and **Message Content** privileged intents for every bot in the Discord Developer Portal.
 
@@ -124,6 +130,9 @@ Opens the main control panel with all commands as buttons.
 
 ### `/help` or `+help`
 Shows available commands and system info.
+
+### `%prefix !`
+Changes the command prefix to `!`. Mention the bot to see its current prefix.
 
 ### `/add` or `+add`
 Add your bot in one click.

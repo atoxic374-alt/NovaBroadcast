@@ -23,10 +23,9 @@ config.bot.tokens = collectTokens();
 const { createLogger } = require('./src/core/Toolkit');
 const router = require('./src/core/CommandRouter');
 const { canUse } = require('./src/core/Access');
+const { notifyEnvironmentOwners, flushPendingOwnerAlerts } = require('./src/core/OwnerAlerts');
 
 const logger = createLogger('Main');
-const PREFIX = config.prefix;
-
 const clients = [];
 const slashCommands = new Collection();
 const prefixCommands = new Collection();
@@ -141,14 +140,21 @@ const initClients = async () => {
             await client.login(token);
 
             clients.push(client);
+            await flushPendingOwnerAlerts(clients);
 
             logger.info(
                 `Logged in: ${client.user.tag} (${clients.length}/${config.bot.tokens.length})`
             );
         } catch (e) {
+            const tokenNumber = config.bot.tokens.indexOf(token) + 1;
             logger.error(
-                `Login failed for token #${config.bot.tokens.indexOf(token) + 1}: ${e.message}`
+                `Login failed for token #${tokenNumber}: ${e.message}`
             );
+            void notifyEnvironmentOwners(clients, {
+                title: 'فشل تشغيل بوت',
+                details: `تعذر تسجيل الدخول للبوت رقم #${tokenNumber}. سبب الخطأ: ${String(e.message || e).slice(0, 500)}`,
+                dedupeKey: `login-failed:${tokenNumber}`
+            });
         }
     }
 
@@ -208,6 +214,7 @@ const addRuntimeToken = async (token) => {
     try {
         await client.login(normalized);
         clients.push(client);
+        await flushPendingOwnerAlerts(clients);
         config.bot.tokens.push(normalized);
         const engine = require('./src/core/BroadcastEngine');
         await engine.initialize(clients);
@@ -216,14 +223,59 @@ const addRuntimeToken = async (token) => {
     } catch (error) {
         client.destroy();
         logger.warn(`Runtime token rejected: ${error.code || error.name || 'login_failed'}`);
+        void notifyEnvironmentOwners(clients, {
+            title: 'فشل تشغيل بوت تمت إضافته',
+            details: `تعذر تسجيل دخول بوت جديد أثناء التشغيل. نوع الخطأ: ${error.code || error.name || 'login_failed'}.`,
+            dedupeKey: `runtime-login-failed:${error.code || error.name || 'login_failed'}`
+        });
         return { ok: false, reason: 'تعذر تسجيل الدخول بهذا التوكن.' };
     }
 };
 
 const attachListeners = (client) => {
 
+    client.once(Events.ClientReady || 'ready', () => {
+        void flushPendingOwnerAlerts(clients);
+    });
+
     client.on('error', (e) => {
         logger.error(`[${client.user?.tag}] error:`, e);
+        void notifyEnvironmentOwners(clients, {
+            title: 'خطأ في أحد البوتات',
+            details: `واجه ${client.user?.tag || `البوت رقم #${client.botIndex}`} خطأً: ${String(e?.message || e).slice(0, 500)}`,
+            dedupeKey: `client-error:${client.user?.id || client.botIndex}`
+        });
+    });
+
+    client.on('shardDisconnect', (closeEvent, shardId) => {
+        const code = closeEvent?.code ?? 'غير معروف';
+        const reason = closeEvent?.reason?.toString?.() || 'لا يوجد سبب مرفق';
+        void notifyEnvironmentOwners(clients, {
+            title: 'انقطع اتصال بوت',
+            details: `${client.user?.tag || `البوت رقم #${client.botIndex}`} — shard ${shardId} — رمز الإغلاق ${code}. قد يحاول Discord إعادة الاتصال تلقائيًا. السبب: ${reason.slice(0, 300)}`,
+            dedupeKey: `shard-disconnect:${client.user?.id || client.botIndex}:${shardId}`
+        });
+    });
+
+    client.on('shardError', (error, shardId) => {
+        void notifyEnvironmentOwners(clients, {
+            title: 'خطأ في اتصال بوت',
+            details: `${client.user?.tag || `البوت رقم #${client.botIndex}`} — shard ${shardId}: ${String(error?.message || error).slice(0, 500)}`,
+            dedupeKey: `shard-error:${client.user?.id || client.botIndex}:${shardId}`
+        });
+    });
+
+    client.on('guildDelete', (guild) => {
+        if (client.intentionalGuildLeaves?.delete(guild.id)) return;
+        void notifyEnvironmentOwners(clients, {
+            title: 'تمت إزالة بوت من سيرفر',
+            details: `${client.user?.tag || `البوت رقم #${client.botIndex}`} لم يعد في السيرفر **${guild.name || 'غير معروف'}** (${guild.id}). قد يكون طردًا أو حظرًا من السيرفر.`,
+            dedupeKey: `guild-delete:${client.user?.id || client.botIndex}:${guild.id}`
+        });
+    });
+
+    client.on('shardResume', () => {
+        void flushPendingOwnerAlerts(clients);
     });
 
     client.on('warn', (w) => {
@@ -237,7 +289,13 @@ const attachListeners = (client) => {
 
         if (msg.author.bot) return;
 
-        if (!msg.content.startsWith(PREFIX)) return;
+        if (client.user && msg.mentions.users.has(client.user.id)) {
+            await msg.reply(`My Prefix \`${config.prefix}\``);
+            return;
+        }
+
+        const prefix = config.prefix;
+        if (!msg.content.startsWith(prefix)) return;
 
         const authorized = await hasBcPermission(
             msg.guild,
@@ -248,7 +306,7 @@ const attachListeners = (client) => {
         if (!authorized) return;
 
         const args = msg.content
-            .slice(PREFIX.length)
+            .slice(prefix.length)
             .trim()
             .split(/\s+/);
 
@@ -359,7 +417,7 @@ process.on('unhandledRejection', (r) => {
 │                   ────────────────────────────────────────────────────────               │
 │                               🤖 BOTS     : ${String(bots).padEnd(35)}          │
 │                               ⚡ SPEED    : ~${String(speed).padEnd(34)}          │
-│                               📨 PREFIX   : ${PREFIX}cp │ ${PREFIX}help │ ${PREFIX}add │ ${PREFIX}left                   │
+│                               📨 PREFIX   : ${config.prefix}cp │ ${config.prefix}help │ ${config.prefix}add │ ${config.prefix}left                   │
 │                               🔷 SLASH    : /cp │ /help │ /add │ /left                   │
 │                              💻 ENGINE   : discord.js v14                                │
 │                                                                                          │

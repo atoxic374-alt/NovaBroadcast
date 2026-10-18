@@ -1,59 +1,23 @@
-const { MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const config = require('../../../config');
+const { MessageFlags } = require('discord.js');
 const { canUse } = require('../../core/Access');
-const { buildContainer, txt, sep, headerSection, createLogger } = require('../../core/Toolkit');
-
-const logger = createLogger('LeftCommand');
+const { createLeftPanel, startLeftCollector } = require('../../core/LeftPanel');
 
 module.exports = {
     name: 'left',
-    data: { name: 'left', description: 'Make all secondary bots leave the server' },
-
+    data: { name: 'left', description: 'Choose a secondary bot to leave or remove all secondary bots' },
     async run(interaction) {
         const engine = require('../../core/BroadcastEngine');
-
         if (!canUse(interaction.member)) return;
 
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-        const clients = engine.clients;
         const guildId = interaction.guild.id;
-
-        const results = [];
-
-        // Skip the main bot (clients[0]) so the control panel keeps working.
-        for (const client of clients.slice(1)) {
-            try {
-                const guild = client.guilds.cache.get(guildId)
-                    ?? await client.guilds.fetch(guildId).catch(() => null);
-
-                if (!guild) {
-                    results.push({ tag: client.user.tag, status: 'ليس في الخادم' });
-                    continue;
-                }
-
-                await guild.leave();
-                results.push({ tag: client.user.tag, status: 'غادر بنجاح' });
-                logger.info(`${client.user.tag} left guild ${guildId}`);
-            } catch (e) {
-                results.push({ tag: client.user.tag, status: `فشل: ${e.message.slice(0, 50)}` });
-                logger.error(`${client.user.tag} failed to leave: ${e.message}`);
-            }
-        }
-
-        const lines = results.map(r => `**${r.tag}** — ${r.status}`).join('\n');
-
-        return interaction.editReply({
-            components: [buildContainer(config.colors.error,
-                headerSection(interaction.guild,
-                    `**## Bots Left Server**`,
-                    `- All secondary bots have been instructed to leave the server. The main bot stays.`
-                ),
-                sep(false),
-                txt(`**النتائج:**\n${lines}`),
-                sep()
-            )],
-            flags: MessageFlags.IsComponentsV2
+        const panel = await createLeftPanel(engine.clients, guildId);
+        const sentMessage = await interaction.editReply({
+            components: [panel.container],
+            flags: MessageFlags.IsComponentsV2,
+            allowedMentions: { parse: [] }
         });
+        startLeftCollector(sentMessage, panel.entries, guildId, panel.sessionId);
+        return sentMessage;
     }
 };

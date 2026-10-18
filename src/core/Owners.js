@@ -28,6 +28,7 @@ write(owners);
 const list = () => [...owners];
 const isOwner = (id) => !!id && owners.includes(id);
 const isEnvironmentOwner = (id) => !!id && SEED.includes(id);
+const environmentOwnerIds = () => [...new Set(SEED)];
 
 const add = (id) => {
     if (!/^\d{17,20}$/.test(id)) return { ok: false, reason: 'Invalid user ID.' };
@@ -45,4 +46,4 @@ const remove = (id) => {
     return { ok: true };
 };
 
-module.exports = { list, isOwner, isEnvironmentOwner, add, remove, FILE };
+module.exports = { list, isOwner, isEnvironmentOwner, environmentOwnerIds, add, remove, FILE };

@@ -33,6 +33,10 @@ module.exports = {
                 '',
                 `**Avatar all , Banner all , Name all , Status all :** تغيير حالة واسم وأفتار وبنر جميع البوتات`,
                 '',
+                `**Prefix :** تغيير البادئة — استخدم \`${prefix}prefix <بادئة جديدة>\``,
+                '',
+                `عند منشن البوت سيعرض البادئة الحالية.`,
+                '',
                 `Prefix: \`${prefix}\` | Slash: \`/\``
             ].join('\n')),
             sep()
