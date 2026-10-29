@@ -355,7 +355,17 @@ const attachListeners = (client) => {
             interaction.user?.id
         );
 
-        if (!authorized) return;
+        if (!authorized) {
+            if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+                const response = { content: 'هذا التحكم متاح للمالكين فقط.', flags: 64 };
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.followUp(response).catch(() => null);
+                } else {
+                    await interaction.reply(response).catch(() => null);
+                }
+            }
+            return;
+        }
 
 
         if (interaction.isChatInputCommand()) {

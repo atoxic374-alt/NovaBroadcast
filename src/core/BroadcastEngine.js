@@ -123,7 +123,7 @@ class BroadcastEngine {
     }
 
     _failureReason(error) {
-        const code = error?.code ?? error?.status;
+        const code = error?.rawError?.code ?? error?.code ?? error?.status;
         return {
             50007: 'DMs closed or bot blocked',
             50013: 'Missing permission',
@@ -136,17 +136,20 @@ class BroadcastEngine {
             '-1': 'User fetch failed'
         }[String(code)] || (['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ENETUNREACH'].includes(code)
             ? 'Network error'
-            : 'Unknown send error');
+            : `Unknown send error${code !== undefined ? ` (code ${code})` : ''}`);
     }
 
     async _sendWithBackoff(client, user, payload) {
-        for (let attempt = 0; attempt < 3; attempt++) {
+        for (let attempt = 0; attempt < 5; attempt++) {
             try {
                 await user.send(payload);
                 this._markSuccess(client);
                 return;
             } catch (error) {
-                if (!this._isTransient(error) || attempt === 2) throw error;
+                const code = error?.rawError?.code ?? error?.code ?? error?.status;
+                const permanent = [10003, 10013, 50007].includes(Number(code));
+                const retryable = this._isTransient(error) || !permanent;
+                if (!retryable || attempt === 4) throw error;
                 const retryAfter = this._isRateLimit(error)
                     ? Math.min(MAX_CLIENT_DELAY, Math.max(1000, Number(error.retryAfter) || 0))
                     : Math.min(MAX_CLIENT_DELAY, 500 * (2 ** attempt));
@@ -155,6 +158,37 @@ class BroadcastEngine {
                 await sleep(retryAfter);
             }
         }
+    }
+
+    async _sendToMember(member, payload) {
+        let lastError = null;
+        const clients = [...this.clients].sort((a, b) =>
+            (this.clientLoadMap.get(a.user.id) || 0) - (this.clientLoadMap.get(b.user.id) || 0)
+        );
+
+        // Try every connected bot. A recipient may block one bot while another
+        // bot can still deliver, and transient API errors get retried above.
+        for (const client of clients) {
+            let slotAcquired = false;
+            try {
+                await this._acquireSendSlot(client);
+                slotAcquired = true;
+                await this._waitForClient(client);
+                this._incLoad(client);
+                const user = await this._resolveUser(client, member);
+                if (!user) throw Object.assign(new Error('Cannot fetch user'), { code: -1 });
+                await this._sendWithBackoff(client, user, payload);
+                return client;
+            } catch (error) {
+                lastError = error;
+                logger.warn(`${client.user.tag} could not deliver to ${member.id}; trying another bot: ${this._failureReason(error)}`);
+            } finally {
+                if (slotAcquired) this._releaseSendSlot(client);
+                this._decLoad(client);
+            }
+        }
+
+        throw lastError || Object.assign(new Error('No connected bot could send'), { code: -1 });
     }
 
     async _resolveUser(client, member) {
@@ -331,7 +365,7 @@ class BroadcastEngine {
             while (pending.length < PREFETCH_PER_CLIENT) {
                 const nextMember = takeNext();
                 if (!nextMember) return;
-                pending.push({ member: nextMember, userPromise: this._resolveUser(client, nextMember) });
+                pending.push({ member: nextMember });
             }
         };
 
@@ -340,33 +374,23 @@ class BroadcastEngine {
             const task = pending.shift();
             const member = task.member;
             fillPrefetch();
-            let slotAcquired = false;
             try {
-                await this._acquireSendSlot(client);
-                slotAcquired = true;
-                await this._waitForClient(client);
-                this._incLoad(client);
-
-                const user = await task.userPromise;
-
-                if (!user) throw Object.assign(new Error('Cannot fetch user'), { code: -1 });
-
                 const guild   = member.guild;
                 const payload = this._buildPayload(message, msgType, embedTitle, embedColor, embedFooter, guild, embedLink, embedImage);
-                await this._sendWithBackoff(client, user, payload);
+                await this._sendToMember(member, payload);
                 results.successCount++;
             } catch (e) {
                 results.failureCount++;
                 results.failedMembers.push(member.id);
                 const reason = this._failureReason(e);
                 results.failureReasons[reason] = (results.failureReasons[reason] || 0) + 1;
-                logger.error(`${client.user.tag} ✗ ${member.user?.tag ?? member.id}: ${reason}`);
+                logger.error(`${client.user.tag} ✗ ${member.id}: ${reason}`);
             } finally {
-                if (slotAcquired) this._releaseSendSlot(client);
-                this._decLoad(client);
                 results.processedCount++;
                 if (results.checkpoint) {
-                    results.checkpoint.completedMemberIds.push(member.id);
+                    if (!results.failedMembers.includes(member.id)) {
+                        results.checkpoint.completedMemberIds.push(member.id);
+                    }
                     if (results.processedCount % 5 === 0 || results.processedCount === results.totalMembers) {
                         results.checkpoint.savedAt = new Date().toISOString();
                         checkpoint.save(results.checkpoint);
@@ -467,8 +491,8 @@ class BroadcastEngine {
     async _finalize({ interaction, results, message, msgType = 'normal', embedFooter = null, embedLink = null }) {
         const elapsed   = Date.now() - results.startTime;
         const avgSpeed  = elapsed > 0 ? Math.round(results.totalMembers / (elapsed / 1000)) : 0;
-        const pct       = results.totalMembers ? Math.floor(results.successCount / results.totalMembers * 100) : 0;
-        const bar       = createProgressBar(pct, 20);
+        const successPct = results.totalMembers ? Math.floor(results.successCount / results.totalMembers * 100) : 0;
+        const bar       = createProgressBar(100, 20);
         const typeLabel = msgType === 'embed' ? 'مضمنة (Embed)' : 'عادية (Normal)';
         const failureSummary = Object.entries(results.failureReasons || {})
             .map(([reason, count]) => `- ${reason} : ${count}`)
@@ -480,7 +504,7 @@ class BroadcastEngine {
             `إجمالي الأعضاء : ${results.totalMembers}`,
             `تم الإرسال بنجاح : ${results.successCount}`,
             `تعذر الإرسال : ${results.failureCount}`,
-            `نسبة النجاح : ${pct}%`,
+            `نسبة النجاح : ${successPct}%`,
             `تمت المعالجة : ${results.processedCount} / ${results.totalMembers}`,
             '',
             '**الأداء**',
@@ -496,16 +520,13 @@ class BroadcastEngine {
         if (embedLink) summary.push(`رابط الزر : ${embedLink}`);
 
         const failedMembers = results.failedMembers || [];
-        const failedNames = failedMembers.slice(0, 30).map(id => {
-            const user = this.clients[0]?.users?.cache?.get(id);
-            return user?.tag || user?.username || `ID ${id}`;
-        });
+        const failedNames = failedMembers.slice(0, 30).map(id => `<@${id}>`);
         if (failedMembers.length > 30) failedNames.push(`و ${failedMembers.length - 30} آخرون`);
 
         await this._updateUI(interaction, buildContainer(config.colors.success,
             txt('**## اكتمل البرودكاست**\nالملخص النهائي وتفاصيل الإرسال في هذه الرسالة.'),
             sep(false),
-            txt(`**[${bar}] ${pct}%**\n\n${summary.join('\n')}`),
+            txt(`**[${bar}] 100% مكتمل**\n\n${summary.join('\n')}`),
             ...(failedNames.length ? [sep(false), txt(`**الأعضاء الذين تعذر الإرسال لهم (${failedMembers.length}) :**\n${failedNames.join('\n')}`)] : []),
             sep()
         ));

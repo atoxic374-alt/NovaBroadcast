@@ -106,6 +106,10 @@ class CommandRouter {
             const id     = interaction.customId;
             const userId = interaction.user.id;
 
+            if (!canUse(interaction.member)) {
+                return interaction.reply({ content: 'هذا التحكم متاح للمالكين فقط.', flags: MessageFlags.Ephemeral }).catch(() => null);
+            }
+
             if (id === 'cp_bc') {
                 if (!canUse(interaction.member)) return;
 
@@ -240,6 +244,10 @@ class CommandRouter {
 
     async handleModal(interaction) {
         try {
+            if (!canUse(interaction.member)) {
+                return interaction.reply({ content: 'هذا التحكم متاح للمالكين فقط.', flags: MessageFlags.Ephemeral }).catch(() => null);
+            }
+
             if (interaction.customId === 'modal_bc') {
                 const text   = interaction.fields.getTextInputValue('bc_text').trim();
                 const imageUrl = interaction.fields.getTextInputValue('bc_image').trim() || null;
@@ -375,22 +383,10 @@ class CommandRouter {
                 let sendError = null;
 
                 try {
-                    await targetMember.send(payload);
+                    await engine._sendToMember(targetMember, payload);
                     sent = true;
                 } catch (err) {
-                    if (engine.clients?.length > 1) {
-                        for (const secClient of engine.clients.slice(1)) {
-                            try {
-                                const u = secClient.users.cache.get(targetMember.id) ?? await secClient.users.fetch(targetMember.id).catch(() => null);
-                                if (u) {
-                                    await u.send(payload);
-                                    sent = true;
-                                    break;
-                                }
-                            } catch (e2) {}
-                        }
-                    }
-                    if (!sent) sendError = err.message;
+                    sendError = engine._failureReason(err);
                 }
 
                 if (sent) {
@@ -399,9 +395,9 @@ class CommandRouter {
                     if (interaction.message?.editable) {
                         await interaction.message.edit({
                             components: [buildContainer(config.colors.success,
-                                headerSection(interaction.guild, `**## Message Delivered**`, `- The broadcast message has been sent successfully to **${targetMember.user.tag}** (<@${targetMember.id}>). The recipient has been notified, and the broadcast process has been completed successfully.`),
+                                headerSection(interaction.guild, `**## Message Delivered**`, `- The broadcast message has been sent successfully to **<@${targetMember.id}>**. The recipient has been notified, and the broadcast process has been completed successfully.`),
                                 sep(false),
-                                txt(`**Recipient:** ${targetMember.user.tag} (\`${targetMember.id}\`)\n**Type:** ${msgType === 'embed' ? 'Embed' : 'Normal'}`),
+                                txt(`**Recipient:** <@${targetMember.id}>\n**Type:** ${msgType === 'embed' ? 'Embed' : 'Normal'}`),
                                 sep()
                             )],
                             flags: MessageFlags.IsComponentsV2
@@ -410,7 +406,7 @@ class CommandRouter {
 
                     return interaction.editReply({
                         components: [buildContainer(config.colors.success,
-                            headerSection(interaction.guild, `**## Message Sent**`, `- Message successfully sent to **${targetMember.user.tag}** (<@${targetMember.id}>)!`),
+                            headerSection(interaction.guild, `**## Message Sent**`, `- Message successfully sent to **<@${targetMember.id}>**!`),
                             sep()
                         )],
                         flags: MessageFlags.IsComponentsV2
@@ -418,9 +414,9 @@ class CommandRouter {
                 } else {
                     return interaction.editReply({
                         components: [buildContainer(config.colors.error,
-                            headerSection(interaction.guild, `**## Delivery Failed**`, `- Could not send message to **${targetMember.user.tag}** (<@${targetMember.id}>). Their DMs may be closed or the bot is blocked.`),
+                            headerSection(interaction.guild, `**## Delivery Failed**`, `- Could not send message to **<@${targetMember.id}>**. Their DMs may be closed or all connected bots were rejected.`),
                             sep(false),
-                            txt(`**Recipient:** ${targetMember.user.tag} (\`${targetMember.id}\`)\n**Error:** ${sendError || 'DMs closed'}`),
+                            txt(`**Recipient:** <@${targetMember.id}>\n**Error:** ${sendError || 'DMs closed'}`),
                             sep()
                         )],
                         flags: MessageFlags.IsComponentsV2
