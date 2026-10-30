@@ -10,12 +10,17 @@ const config = require('../../config');
 const checkpoint = require('./Checkpoint');
 const broadcastCooldown = require('./BroadcastCooldown');
 
+// Multiple authorized bots are used for fair load sharing, not to bypass Discord rate limits.
 const COOLDOWN_TIME      = 900;
-const MEMBER_COOLDOWN    = 100;
-const MIN_CLIENT_DELAY   = 900;
-const MAX_CLIENT_DELAY   = 6000;
-const PREFETCH_PER_CLIENT = 4;
-const START_CLIENT_CONCURRENCY = 3;
+const MEMBER_COOLDOWN    = 250;
+const MIN_CLIENT_DELAY   = 1100;
+const MAX_CLIENT_DELAY   = 12000;
+const PREFETCH_PER_CLIENT = 1;
+const START_CLIENT_CONCURRENCY = 1;
+const SUCCESS_STEP       = 20;
+const MAX_RETRIES        = 4;
+const MAX_CONSECUTIVE_ERRORS   = 4;
+const MAX_CLIENT_RATE_LIMITS   = 2;
 const REQUESTS_PER_SECOND = 1000 / (COOLDOWN_TIME + MEMBER_COOLDOWN);
 const { sleep, createLogger, createProgressBar, buildContainer, txt, sep } = require('./Toolkit');
 const history = require('./BroadcastHistory');
@@ -51,7 +56,12 @@ class BroadcastEngine {
                     successStreak: 0,
                     rateLimits: 0,
                     concurrency: START_CLIENT_CONCURRENCY,
-                    inFlight: 0
+                    inFlight: 0,
+                    lastUsedAt: 0,
+                    consecutiveErrors: 0,
+                    suspendedUntil: 0,
+                    operationCount: 0,
+                    safetyStopped: false
                 });
             }
             try {
@@ -100,20 +110,42 @@ class BroadcastEngine {
     _markSuccess(client) {
         const state = this._rateState(client);
         state.successStreak++;
-        if (state.successStreak >= 20) {
+        state.consecutiveErrors = 0;
+        if (state.successStreak >= SUCCESS_STEP) {
             state.delay = Math.max(MIN_CLIENT_DELAY, state.delay - 25);
             state.successStreak = 0;
         }
-        state.nextAt = Date.now() + state.delay;
+        // Spread wake-ups slightly so clients do not create synchronized bursts.
+        const spread = Math.floor(Math.random() * 151);
+        state.lastUsedAt = Date.now();
+        state.nextAt = Date.now() + state.delay + spread;
     }
 
     _markRateLimit(client, retryAfter = 0) {
         const state = this._rateState(client);
         state.rateLimits++;
         state.successStreak = 0;
+        state.consecutiveErrors++;
         state.concurrency = 1;
-        state.delay = Math.min(MAX_CLIENT_DELAY, Math.max(state.delay + 500, retryAfter));
-        state.nextAt = Date.now() + Math.max(state.delay, retryAfter);
+        state.delay = Math.min(MAX_CLIENT_DELAY, Math.max(state.delay + 750, retryAfter, MIN_CLIENT_DELAY));
+        state.suspendedUntil = Date.now() + Math.max(state.delay, retryAfter);
+        if (state.rateLimits >= MAX_CLIENT_RATE_LIMITS) state.safetyStopped = true;
+    }
+
+    _recordClientError(client) {
+        const state = this._rateState(client);
+        state.consecutiveErrors++;
+        if (state.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            state.safetyStopped = true;
+            state.suspendedUntil = Date.now() + MAX_CLIENT_DELAY;
+        }
+    }
+
+    _clientReady(client) {
+        const state = this._rateState(client);
+        return Boolean(client?.user && state && !state.safetyStopped
+            && state.suspendedUntil <= Date.now()
+            && state.inFlight === 0);
     }
 
     _isRateLimit(error) {
@@ -124,6 +156,17 @@ class BroadcastEngine {
         return this._isRateLimit(error)
             || [500, 502, 503, 504].includes(error?.status)
             || ['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ENETUNREACH'].includes(error?.code);
+    }
+
+    _retryAfterMs(error) {
+        // discord.js/@discordjs/rest exposes retryAfter in milliseconds;
+        // raw Discord JSON and Retry-After headers use seconds.
+        const libraryValue = Number(error?.retryAfter);
+        if (Number.isFinite(libraryValue) && libraryValue > 0) return Math.ceil(libraryValue);
+        const rawValue = Number(error?.rawError?.retry_after ?? error?.rawError?.retryAfter);
+        if (Number.isFinite(rawValue) && rawValue > 0) return Math.ceil(rawValue * 1000);
+        const headerValue = Number(error?.headers?.['retry-after']);
+        return Number.isFinite(headerValue) && headerValue > 0 ? Math.ceil(headerValue * 1000) : 0;
     }
 
     _failureReason(error) {
@@ -144,7 +187,7 @@ class BroadcastEngine {
     }
 
     async _sendWithBackoff(client, user, payload) {
-        for (let attempt = 0; attempt < 5; attempt++) {
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
             try {
                 await user.send(payload);
                 this._markSuccess(client);
@@ -153,46 +196,75 @@ class BroadcastEngine {
                 const code = error?.rawError?.code ?? error?.code ?? error?.status;
                 const permanent = [10003, 10013, 50007].includes(Number(code));
                 const retryable = this._isTransient(error) || !permanent;
-                if (!retryable || attempt === 4) throw error;
-                const retryAfter = this._isRateLimit(error)
-                    ? Math.min(MAX_CLIENT_DELAY, Math.max(1000, Number(error.retryAfter) || 0))
+                const rateLimited = this._isRateLimit(error);
+                const retryAfter = rateLimited
+                    ? Math.max(MIN_CLIENT_DELAY, this._retryAfterMs(error))
                     : Math.min(MAX_CLIENT_DELAY, 500 * (2 ** attempt));
-                if (this._isRateLimit(error)) this._markRateLimit(client, retryAfter);
+                // Always put a 429 client into cooldown, including on the final
+                // retry. The server-provided retry_after is never truncated.
+                if (rateLimited) this._markRateLimit(client, retryAfter);
                 else this._rateState(client).nextAt = Date.now() + retryAfter;
+                if (!retryable || attempt === MAX_RETRIES - 1) throw error;
                 await sleep(retryAfter);
             }
         }
     }
 
-    async _sendToMember(member, payload) {
-        let lastError = null;
-        const clients = [...this.clients].sort((a, b) =>
-            (this.clientLoadMap.get(a.user.id) || 0) - (this.clientLoadMap.get(b.user.id) || 0)
-        );
+    _orderedReadyClients(preferredClient) {
+        const candidates = this.clients.filter(client => this._clientReady(client));
+        return [...candidates].sort((a, b) => {
+            const aState = this._rateState(a);
+            const bState = this._rateState(b);
+            const aScore = aState.nextAt + (aState.inFlight * 1000) + (aState.operationCount * 5);
+            const bScore = bState.nextAt + (bState.inFlight * 1000) + (bState.operationCount * 5);
+            if (a === preferredClient) return -1;
+            if (b === preferredClient) return 1;
+            return aScore - bScore;
+        });
+    }
 
-        // Try every connected bot. A recipient may block one bot while another
-        // bot can still deliver, and transient API errors get retried above.
-        for (const client of clients) {
-            let slotAcquired = false;
+    _isRecipientSpecificFailure(error) {
+        const code = Number(error?.rawError?.code ?? error?.code ?? error?.status);
+        return [-1, 10003, 10013, 50007].includes(code);
+    }
+
+    async _sendWithClient(client, member, payload) {
+        if (!this._clientReady(client)) throw Object.assign(new Error('Bot is not ready'), { code: 'BOT_NOT_READY' });
+        const state = this._rateState(client);
+        let slotAcquired = false;
+        try {
+            await this._acquireSendSlot(client);
+            slotAcquired = true;
+            await this._waitForClient(client);
+            this._incLoad(client);
+            const user = await this._resolveUser(client, member);
+            if (!user) throw Object.assign(new Error('Cannot fetch user'), { code: -1 });
+            await this._sendWithBackoff(client, user, payload);
+            state.operationCount++;
+            return client;
+        } catch (error) {
+            if (!this._isRateLimit(error)) this._recordClientError(client);
+            throw error;
+        } finally {
+            if (slotAcquired) this._releaseSendSlot(client);
+            this._decLoad(client);
+        }
+    }
+
+    async _sendToMember(member, payload, preferredClient) {
+        let lastError = null;
+        const candidates = this._orderedReadyClients(preferredClient);
+        for (const client of candidates) {
             try {
-                await this._acquireSendSlot(client);
-                slotAcquired = true;
-                await this._waitForClient(client);
-                this._incLoad(client);
-                const user = await this._resolveUser(client, member);
-                if (!user) throw Object.assign(new Error('Cannot fetch user'), { code: -1 });
-                await this._sendWithBackoff(client, user, payload);
-                return client;
+                return await this._sendWithClient(client, member, payload);
             } catch (error) {
                 lastError = error;
-                logger.warn(`${client.user.tag} could not deliver to ${member.id}; trying another bot: ${this._failureReason(error)}`);
-            } finally {
-                if (slotAcquired) this._releaseSendSlot(client);
-                this._decLoad(client);
+                // Never rotate around a 429/global failure. Rotation is only
+                // allowed for recipient-specific delivery failures.
+                if (!this._isRecipientSpecificFailure(error)) throw error;
             }
         }
-
-        throw lastError || Object.assign(new Error('No connected bot could send'), { code: -1 });
+        throw lastError || Object.assign(new Error('No ready bot could send'), { code: 'NO_READY_BOT' });
     }
 
     async _resolveUser(client, member) {
@@ -309,7 +381,7 @@ class BroadcastEngine {
     }
 
     async startBroadcast({ interaction, members, message, msgType = 'normal', embedTitle = null, embedColor = null, embedFooter = null, embedLink = null, embedImage = null, bypassCooldown = false, ownerId = null, targetLabel = 'الفئة المستهدفة' }) {
-        if (!bypassCooldown && this.isBusy()) return { busy: true };
+        if (this.isBusy()) return { busy: true };
         const operationId = `BC-${Date.now().toString(36).toUpperCase()}`;
         this.activeOperation = {
             id: operationId, ownerId, guildId: interaction?.guild?.id || null,
@@ -328,6 +400,15 @@ class BroadcastEngine {
         const totalMembers = uniqueMembers.length;
         const valid        = this.clients.filter(c => c?.user?.id);
         const clientCount  = valid.length;
+
+        for (const client of valid) {
+            const state = this._rateState(client);
+            state.operationCount = 0;
+            state.rateLimits = 0;
+            state.consecutiveErrors = 0;
+            state.safetyStopped = false;
+            state.suspendedUntil = 0;
+        }
 
         if (!clientCount) { logger.error('No clients available'); this.activeOperation = null; clearTimeout(timeout); return null; }
 
@@ -354,6 +435,7 @@ class BroadcastEngine {
             embedImage,
             memberIds: uniqueMembers.map(member => member.id),
             completedMemberIds: [],
+            memberState: Object.fromEntries(uniqueMembers.map(member => [member.id, 'pending'])),
             savedAt: new Date().toISOString()
         };
         if (checkpointState.guildId) checkpoint.save(checkpointState);
@@ -397,22 +479,21 @@ class BroadcastEngine {
             sep()
         ), [this._controlRow()]);
 
+        // Barrier rounds: every ready bot gets at most one member per round.
+        // The next round does not start until all sends in this round finish.
         let cursor = 0;
-        const claimed = new Set();
-        const takeNext = () => {
-            if (this.activeOperation?.cancelRequested) return null;
-            while (cursor < uniqueMembers.length) {
+        while (cursor < uniqueMembers.length && !this.activeOperation?.cancelRequested) {
+            const round = [];
+            for (const client of valid) {
                 const member = uniqueMembers[cursor++];
-                if (claimed.has(member.id)) continue;
-                claimed.add(member.id);
-                return member;
+                if (!member) break;
+                round.push({ client, member });
             }
-            return null;
-        };
-
-        await Promise.all(valid.map(client =>
-            this._processQueue({ client, takeNext, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage })
-        ));
+            await Promise.all(round.map(({ client, member }) => this._processMember({
+                client, member, results, interaction, message, msgType, embedTitle,
+                embedColor, embedFooter, embedLink, embedImage
+            })));
+        }
 
         clearTimeout(timeout);
         if (this.activeOperation?.status === 'running') this.activeOperation.status = 'completed';
@@ -422,6 +503,51 @@ class BroadcastEngine {
         this.lastResult = finalResult;
         this.activeOperation = null;
         return finalResult;
+    }
+
+    async _processMember({ client, member, results, interaction, message, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage }) {
+        if (!client?.user || !member?.id || this.activeOperation?.cancelRequested) return;
+        try {
+            if (results.checkpoint) {
+                results.checkpoint.memberState[member.id] = 'sending';
+                results.checkpoint.savedAt = new Date().toISOString();
+                checkpoint.save(results.checkpoint);
+            }
+            const guild = member.guild;
+            const payload = this._buildPayload(message, msgType, embedTitle, embedColor, embedFooter, guild, embedLink, embedImage);
+            await this._sendToMember(member, payload, client);
+            results.successCount++;
+            if (results.checkpoint) results.checkpoint.memberState[member.id] = 'sent';
+        } catch (e) {
+            results.failureCount++;
+            if (results.checkpoint) results.checkpoint.memberState[member.id] = 'failed';
+            results.failedMembers.push(member.id);
+            if (['NO_READY_BOT'].includes(e?.code)) {
+                this.activeOperation.cancelRequested = true;
+                this.activeOperation.status = 'safety_stopped';
+                logger.warn(`Broadcast ${results.operationId} stopped by safety guard: ${e.code}`);
+            }
+            const reason = this._failureReason(e);
+            results.failureReasons[reason] = (results.failureReasons[reason] || 0) + 1;
+            logger.error(`${client.user.tag} ✗ ${member.id}: ${reason}`);
+        } finally {
+            results.processedCount++;
+            if (results.checkpoint) {
+                if (!results.failedMembers.includes(member.id)) {
+                    results.checkpoint.completedMemberIds.push(member.id);
+                }
+                results.checkpoint.savedAt = new Date().toISOString();
+                checkpoint.save(results.checkpoint);
+            }
+            const state = this._rateState(client);
+            if (state && state.nextAt < Date.now()) state.nextAt = Date.now() + state.delay;
+            const pct = results.totalMembers ? Math.floor(results.processedCount / results.totalMembers * 100) : 100;
+            if (results.processedCount - results.lastUIProcessed >= 10 || results.processedCount === results.totalMembers) {
+                results.lastUIUpdate = Date.now();
+                results.lastUIProcessed = results.processedCount;
+                await this._progressUI(interaction, results, pct);
+            }
+        }
     }
 
     async _processQueue(args) {
@@ -449,13 +575,25 @@ class BroadcastEngine {
             if (!(await this._waitForOperation())) break;
             fillPrefetch();
             try {
+                if (results.checkpoint) {
+                    results.checkpoint.memberState[member.id] = 'sending';
+                    results.checkpoint.savedAt = new Date().toISOString();
+                    checkpoint.save(results.checkpoint);
+                }
                 const guild   = member.guild;
                 const payload = this._buildPayload(message, msgType, embedTitle, embedColor, embedFooter, guild, embedLink, embedImage);
-                await this._sendToMember(member, payload);
+                await this._sendToMember(member, payload, client);
                 results.successCount++;
+                if (results.checkpoint) results.checkpoint.memberState[member.id] = 'sent';
             } catch (e) {
                 results.failureCount++;
+                if (results.checkpoint) results.checkpoint.memberState[member.id] = 'failed';
                 results.failedMembers.push(member.id);
+                if (['NO_READY_BOT'].includes(e?.code)) {
+                    this.activeOperation.cancelRequested = true;
+                    this.activeOperation.status = 'safety_stopped';
+                    logger.warn(`Broadcast ${results.operationId} stopped by safety guard: ${e.code}`);
+                }
                 const reason = this._failureReason(e);
                 results.failureReasons[reason] = (results.failureReasons[reason] || 0) + 1;
                 logger.error(`${client.user.tag} ✗ ${member.id}: ${reason}`);
@@ -465,10 +603,8 @@ class BroadcastEngine {
                     if (!results.failedMembers.includes(member.id)) {
                         results.checkpoint.completedMemberIds.push(member.id);
                     }
-                    if (results.processedCount % 5 === 0 || results.processedCount === results.totalMembers) {
-                        results.checkpoint.savedAt = new Date().toISOString();
-                        checkpoint.save(results.checkpoint);
-                    }
+                    results.checkpoint.savedAt = new Date().toISOString();
+                    checkpoint.save(results.checkpoint);
                 }
                 const state = this._rateState(client);
                 if (state.nextAt < Date.now()) state.nextAt = Date.now() + state.delay;
@@ -579,7 +715,7 @@ class BroadcastEngine {
         const summary = [
             '**ملخص النتائج**',
             `رقم العملية : ${results.operationId}`,
-            `الحالة : ${operationStatus === 'expired' ? 'انتهت بالمهلة' : operationStatus === 'canceled' ? 'تم الإلغاء' : 'اكتملت'}`,
+            `الحالة : ${operationStatus === 'expired' ? 'انتهت بالمهلة' : operationStatus === 'canceled' ? 'تم الإلغاء' : operationStatus === 'safety_stopped' ? 'توقفت للحماية' : 'اكتملت'}`,
             `الفئة المستهدفة : ${results.targetLabel || 'غير محددة'}`,
             `إجمالي الأعضاء : ${results.totalMembers}`,
             `تم الإرسال بنجاح : ${results.successCount}`,

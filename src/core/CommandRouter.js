@@ -202,6 +202,9 @@ ${String(text).slice(0, 600)}`),
                 const failed = new Set(result.failedMembers || []);
                 const members = new Map(context.members.filter(member => failed.has(member.id)).map(member => [member.id, member]));
                 if (!members.size) return interaction.reply({ content: 'لا توجد أعضاء فاشلون لإعادة الإرسال.', flags: MessageFlags.Ephemeral });
+                if (engine.isBusy()) {
+                    return interaction.reply({ content: 'توجد عملية أخرى قيد التنفيذ؛ لن يتم تشغيل محاولة مكررة.', flags: MessageFlags.Ephemeral });
+                }
                 await interaction.deferUpdate();
                 return engine.startBroadcast({ ...context, interaction, members, bypassCooldown: true });
             }
