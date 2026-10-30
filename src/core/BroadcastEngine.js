@@ -18,6 +18,7 @@ const PREFETCH_PER_CLIENT = 4;
 const START_CLIENT_CONCURRENCY = 3;
 const REQUESTS_PER_SECOND = 1000 / (COOLDOWN_TIME + MEMBER_COOLDOWN);
 const { sleep, createLogger, createProgressBar, buildContainer, txt, sep } = require('./Toolkit');
+const history = require('./BroadcastHistory');
 
 const logger = createLogger('BroadcastEngine');
 
@@ -30,6 +31,9 @@ class BroadcastEngine {
         this.memberCooldown    = MEMBER_COOLDOWN;
         this.requestsPerSecond = REQUESTS_PER_SECOND;
         this.uiUpdateQueues    = new WeakMap();
+        this.activeOperation   = null;
+        this.lastResult        = null;
+        this.lastContext       = null;
     }
 
     async initialize(clients) {
@@ -256,24 +260,84 @@ class BroadcastEngine {
         return { content: message };
     }
 
+    isBusy() {
+        return Boolean(this.activeOperation && ['running', 'paused'].includes(this.activeOperation.status));
+    }
+
+    pause() {
+        if (!this.isBusy()) return { ok: false, reason: 'لا توجد عملية نشطة.' };
+        this.activeOperation.paused = true;
+        this.activeOperation.status = 'paused';
+        return { ok: true };
+    }
+
+    resume() {
+        if (!this.activeOperation || this.activeOperation.status !== 'paused') return { ok: false, reason: 'العملية ليست متوقفة مؤقتًا.' };
+        this.activeOperation.paused = false;
+        this.activeOperation.status = 'running';
+        return { ok: true };
+    }
+
+    cancel() {
+        if (!this.isBusy()) return { ok: false, reason: 'لا توجد عملية نشطة.' };
+        this.activeOperation.cancelRequested = true;
+        this.activeOperation.paused = false;
+        this.activeOperation.status = 'canceled';
+        return { ok: true };
+    }
+
+    getOperation() {
+        return this.activeOperation;
+    }
+
+    async _waitForOperation() {
+        while (this.activeOperation?.paused && !this.activeOperation.cancelRequested) await sleep(250);
+        return !this.activeOperation?.cancelRequested;
+    }
+
     getBroadcastCooldown(guildId) {
         return broadcastCooldown.remaining(guildId);
     }
 
-    async startBroadcast({ interaction, members, message, msgType = 'normal', embedTitle = null, embedColor = null, embedFooter = null, embedLink = null, embedImage = null, bypassCooldown = false }) {
+    _controlRow() {
+        const paused = this.activeOperation?.status === 'paused';
+        return new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(paused ? 'bc_resume' : 'bc_pause').setLabel(paused ? 'Resume' : 'Pause').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('bc_refresh').setLabel('Refresh').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('bc_cancel_active').setLabel('Cancel').setStyle(ButtonStyle.Danger)
+        );
+    }
+
+    async startBroadcast({ interaction, members, message, msgType = 'normal', embedTitle = null, embedColor = null, embedFooter = null, embedLink = null, embedImage = null, bypassCooldown = false, ownerId = null, targetLabel = 'الفئة المستهدفة' }) {
+        if (!bypassCooldown && this.isBusy()) return { busy: true };
+        const operationId = `BC-${Date.now().toString(36).toUpperCase()}`;
+        this.activeOperation = {
+            id: operationId, ownerId, guildId: interaction?.guild?.id || null,
+            status: 'running', paused: false, cancelRequested: false,
+            startedAt: Date.now(), targetLabel
+        };
+        const timeout = setTimeout(() => {
+            if (this.isBusy()) {
+                this.activeOperation.cancelRequested = true;
+                this.activeOperation.status = 'expired';
+                logger.warn(`Broadcast ${operationId} expired after the safety timeout.`);
+            }
+        }, 30 * 60 * 1000);
         const queue = [...members.values()].filter(member => member?.id && !member.user?.bot);
         const uniqueMembers = [...new Map(queue.map(member => [member.id, member])).values()];
         const totalMembers = uniqueMembers.length;
         const valid        = this.clients.filter(c => c?.user?.id);
         const clientCount  = valid.length;
 
-        if (!clientCount) { logger.error('No clients available'); return null; }
+        if (!clientCount) { logger.error('No clients available'); this.activeOperation = null; clearTimeout(timeout); return null; }
 
         const guildId = interaction?.guild?.id || uniqueMembers[0]?.guild?.id;
         if (!bypassCooldown && guildId) {
             const claim = broadcastCooldown.claim(guildId);
             if (!claim.claimed) {
                 logger.warn(`Broadcast blocked by cooldown for guild ${guildId}: ${claim.remaining}ms remaining`);
+                this.activeOperation = null;
+                clearTimeout(timeout);
                 return { cooldown: true, remaining: claim.remaining };
             }
         }
@@ -304,7 +368,9 @@ class BroadcastEngine {
             lastUIUpdate:   Date.now(),
             lastUIProcessed: 0,
             processedCount: 0,
-            checkpoint: checkpointState
+            checkpoint: checkpointState,
+            operationId,
+            targetLabel
         };
 
         const rps    = REQUESTS_PER_SECOND * clientCount;
@@ -329,11 +395,12 @@ class BroadcastEngine {
                 `نوع الرسالة : ${typeLabel}`
             ].join('\n')),
             sep()
-        ));
+        ), [this._controlRow()]);
 
         let cursor = 0;
         const claimed = new Set();
         const takeNext = () => {
+            if (this.activeOperation?.cancelRequested) return null;
             while (cursor < uniqueMembers.length) {
                 const member = uniqueMembers[cursor++];
                 if (claimed.has(member.id)) continue;
@@ -347,8 +414,14 @@ class BroadcastEngine {
             this._processQueue({ client, takeNext, message, results, interaction, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage })
         ));
 
+        clearTimeout(timeout);
+        if (this.activeOperation?.status === 'running') this.activeOperation.status = 'completed';
         logger.info(`Broadcast done —  ${results.successCount}   ${results.failureCount}`);
-        return this._finalize({ interaction, results, message, msgType, embedFooter, embedLink });
+        this.lastContext = { interaction, members: uniqueMembers, message, msgType, embedTitle, embedColor, embedFooter, embedLink, embedImage, ownerId, targetLabel };
+        const finalResult = await this._finalize({ interaction, results, message, msgType, embedFooter, embedLink });
+        this.lastResult = finalResult;
+        this.activeOperation = null;
+        return finalResult;
     }
 
     async _processQueue(args) {
@@ -373,6 +446,7 @@ class BroadcastEngine {
         while (pending.length) {
             const task = pending.shift();
             const member = task.member;
+            if (!(await this._waitForOperation())) break;
             fillPrefetch();
             try {
                 const guild   = member.guild;
@@ -435,10 +509,12 @@ class BroadcastEngine {
                 `الوقت المنقضي : ${Math.floor(elapsed / 60000)} د ${Math.floor((elapsed % 60000) / 1000)} ث`,
                 `سرعة الإرسال : ~${curSpeed} رسالة / ثانية`,
                 `البوتات المستخدمة : ${this.clients.length}`,
-                `نوع الرسالة : ${results.msgType || 'البرودكاست'}`
+                `نوع الرسالة : ${results.msgType || 'البرودكاست'}`,
+                `رقم العملية : ${results.operationId}`,
+                `الحالة : ${this.activeOperation?.status === 'paused' ? 'متوقفة مؤقتًا' : 'قيد التنفيذ'}`
             ].join('\n')),
             sep()
-        ));
+        ), [this._controlRow()]);
     }
 
     async resumeCheckpoint() {
@@ -498,9 +574,13 @@ class BroadcastEngine {
             .map(([reason, count]) => `- ${reason} : ${count}`)
             .join('\n') || 'لا يوجد';
         const duration = `${Math.floor(elapsed / 60000)} د ${Math.floor((elapsed % 60000) / 1000)} ث`;
+        const operationStatus = this.activeOperation?.status || 'completed';
         const preview = String(message || '').slice(0, 200);
         const summary = [
             '**ملخص النتائج**',
+            `رقم العملية : ${results.operationId}`,
+            `الحالة : ${operationStatus === 'expired' ? 'انتهت بالمهلة' : operationStatus === 'canceled' ? 'تم الإلغاء' : 'اكتملت'}`,
+            `الفئة المستهدفة : ${results.targetLabel || 'غير محددة'}`,
             `إجمالي الأعضاء : ${results.totalMembers}`,
             `تم الإرسال بنجاح : ${results.successCount}`,
             `تعذر الإرسال : ${results.failureCount}`,
@@ -524,19 +604,29 @@ class BroadcastEngine {
         if (failedMembers.length > 30) failedNames.push(`و ${failedMembers.length - 30} آخرون`);
 
         await this._updateUI(interaction, buildContainer(config.colors.success,
-            txt('**## اكتمل البرودكاست**\nالملخص النهائي وتفاصيل الإرسال في هذه الرسالة.'),
+            txt(`**## ${operationStatus === 'completed' ? 'Broadcast Completed' : operationStatus === 'expired' ? 'Broadcast Expired' : 'Broadcast Canceled'}**\nالملخص النهائي وتفاصيل الإرسال في هذه الرسالة.`),
             sep(false),
-            txt(`**[${bar}] 100% مكتمل**\n\n${summary.join('\n')}`),
+            txt(`**[${bar}] ${results.processedCount >= results.totalMembers ? '100' : Math.floor(results.processedCount / Math.max(1, results.totalMembers) * 100)}% مكتمل**\n\n${summary.join('\n')}`),
             ...(failedNames.length ? [sep(false), txt(`**الأعضاء الذين تعذر الإرسال لهم (${failedMembers.length}) :**\n${failedNames.join('\n')}`)] : []),
             sep()
-        ));
+        ), failedNames.length ? [new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('bc_retry_failed').setLabel('Retry Failed').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('bc_details').setLabel('Details').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('bc_close').setLabel('Close').setStyle(ButtonStyle.Danger)
+        )] : [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('bc_close').setLabel('Close').setStyle(ButtonStyle.Secondary))]);
 
         checkpoint.clear();
+        history.add({
+            id: results.operationId, status: operationStatus, guildId: interaction?.guild?.id || null,
+            total: results.totalMembers, success: results.successCount, failed: results.failureCount,
+            startedAt: new Date(results.startTime).toISOString(), finishedAt: new Date().toISOString(),
+            failureReasons: results.failureReasons
+        });
 
         return results;
     }
 
-    async _updateUI(interaction, container) {
+    async _updateUI(interaction, container, extraComponents = []) {
         const edit = interaction?.message?.edit
             ? (payload) => interaction.message.edit(payload)
             : interaction?.editReply
@@ -545,7 +635,7 @@ class BroadcastEngine {
         if (!edit) return;
         const previous = this.uiUpdateQueues.get(interaction) || Promise.resolve();
         const next = previous.catch(() => null).then(() => edit({
-            components: [container],
+            components: [container, ...extraComponents],
             flags: MessageFlags.IsComponentsV2,
             allowedMentions: { parse: [] }
         })).catch((e) => logger.error('UI update failed:', e));
